@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 //  GastroExperience — config.js
 //  ⚠️  ESTE ES EL ÚNICO ARCHIVO QUE CAMBIA POR CADA CLIENTE
 // ============================================================
@@ -37,10 +37,10 @@ const APP_CONFIG = {
 
   // ── 7. CATEGORÍAS DE LA CARTA ──────────────────────────
   menuCategories: [
-    { id: "raciones",     label: "Raciones",     page: "raciones.html",     img: "images/cat-raciones.jpg"     },
-    { id: "hamburguesas", label: "Hamburguesas",  page: "hamburguesas.html",  img: "images/cat-hamburguesas.jpg" },
-    { id: "bebidas",      label: "Bebidas",       page: "bebidas.html",       img: "images/cat-bebidas.jpg"      },
-    { id: "postres",      label: "Postres",        page: "postres.html",       img: "images/cat-postres.jpg"      },
+    { id: "raciones",     label: "Raciones",     page: "raciones.html",     img: "images/cat-raciones.png"     },
+    { id: "hamburguesas", label: "Hamburguesas",  page: "hamburguesas.html",  img: "images/cat-hamburguesas.png" },
+    { id: "bebidas",      label: "Bebidas",       page: "bebidas.html",       img: "images/cat-bebidas.png"      },
+    { id: "postres",      label: "Postres",        page: "postres.html",       img: "images/cat-postres.png"      },
   ],
 
   // ── 8. CONTRASEÑA DEL PANEL DE ADMIN ──────────────────
