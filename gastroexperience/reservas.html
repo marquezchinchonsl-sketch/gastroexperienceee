@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reservar Mesa</title>
+  <meta name="theme-color" content="#f8f6f2">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="reservas.css">
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body>
+
+  <header class="reservation-header">
+    <a href="index.html" class="back-link"><i class="fas fa-arrow-left"></i></a>
+    <div class="header-content">
+      <h1 id="res-bar-name">Reservar Mesa</h1>
+      <p id="res-bar-type"></p>
+    </div>
+    <div class="placeholder"></div>
+  </header>
+
+  <main class="reservation-container">
+    <section class="reservation-filters">
+      <div class="filter-group">
+        <label><i class="fas fa-users"></i> Personas</label>
+        <div class="custom-select">
+          <select id="people-select">
+            <option value="1">1 persona</option>
+            <option value="2" selected>2 personas</option>
+            <option value="3">3 personas</option>
+            <option value="4">4 personas</option>
+            <option value="5">5 personas</option>
+            <option value="6">6 personas</option>
+            <option value="7">7 personas</option>
+            <option value="8">8 personas</option>
+            <option value="9">9 personas</option>
+            <option value="10">10 personas</option>
+            <option value="11">11 personas</option>
+            <option value="12">12 personas</option>
+          </select>
+          <i class="fas fa-chevron-down"></i>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label><i class="fas fa-calendar"></i> Fecha</label>
+        <div class="custom-input">
+          <input type="date" id="date-select">
+        </div>
+      </div>
+    </section>
+    <!-- Slots se inyectan aquí por JS -->
+  </main>
+
+  <div class="sticky-footer">
+    <button class="btn-primary" id="continue-btn">
+      <i class="fas fa-arrow-right"></i> Continuar con la reserva
+    </button>
+  </div>
+
+  <!-- Modal: Datos de contacto -->
+  <div id="reservation-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <h2>Finalizar Reserva</h2>
+        <button class="close-modal"><i class="fas fa-times"></i></button>
+      </div>
+      <form id="contact-form">
+        <div class="form-group">
+          <label for="user-name"><i class="fas fa-user"></i> Nombre Completo</label>
+          <input type="text" id="user-name" required placeholder="Tu nombre y apellido">
+        </div>
+        <div class="form-group">
+          <label for="user-phone"><i class="fas fa-phone"></i> Teléfono</label>
+          <input type="tel" id="user-phone" required placeholder="600 000 000">
+        </div>
+        <div class="form-group">
+          <label for="user-email"><i class="fas fa-envelope"></i> Email</label>
+          <input type="email" id="user-email" required placeholder="ejemplo@correo.com">
+        </div>
+        <div class="summary-preview">
+          <p><i class="fas fa-calendar"></i> Fecha: <span id="summary-date"></span></p>
+          <p><i class="fas fa-clock"></i> Hora: <span id="summary-time"></span></p>
+          <p><i class="fas fa-map-marker-alt"></i> Zona: <span id="summary-zone"></span></p>
+          <p><i class="fas fa-users"></i> Personas: <span id="summary-people"></span></p>
+        </div>
+        <button type="submit" class="btn-primary close-success" style="margin-top:0;">
+          <i class="fas fa-check"></i> Confirmar Reserva
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Éxito -->
+  <div id="success-modal" class="modal-overlay hidden">
+    <div class="modal-content success-content">
+      <div class="modal-handle"></div>
+      <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+      <h2>¡Solicitud Enviada!</h2>
+      <p>Gracias, <strong id="success-name"></strong>. Confirmaremos tu reserva pronto.</p>
+      <div class="confirmation-details">
+        <p class="contact-info"><i class="fas fa-calendar"></i> Fecha: <span id="res-final-date"></span></p>
+        <p class="contact-info"><i class="fas fa-clock"></i> Hora: <span id="res-final-time"></span></p>
+        <p class="contact-info"><i class="fas fa-map-marker-alt"></i> Zona: <span id="res-final-zone"></span></p>
+        <p class="contact-info"><i class="fas fa-users"></i> Personas: <span id="res-final-people"></span></p>
+      </div>
+      <button class="btn-primary" id="go-home-btn">Volver al inicio</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    // ── Init ────────────────────────────────────────────────
+    document.title = `Reservar Mesa | ${APP_CONFIG.barName}`;
+    document.getElementById('res-bar-name').textContent = APP_CONFIG.barName;
+    document.getElementById('res-bar-type').textContent = APP_CONFIG.barTagline;
+
+    const db    = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
+    const RID   = APP_CONFIG.restaurantId;
+    const ZONES = APP_CONFIG.zones;
+
+    // Capacidad por zona
+    const ZONE_CAPACITY = {};
+    ZONES.forEach(z => ZONE_CAPACITY[z.id] = z.capacity);
+
+    const dateInput   = document.getElementById('date-select');
+    const peopleSelect= document.getElementById('people-select');
+    const continueBtn = document.getElementById('continue-btn');
+    const modal       = document.getElementById('reservation-modal');
+
+    let selectedSlot = null;
+
+    // ── Cargar horario semanal desde la BD ──────────────────
+    async function getWeeklySchedule() {
+      const { data } = await db.from('settings')
+        .select('*').eq('key','weekly_schedule').eq('restaurant_id', RID).single();
+      if (data?.value) {
+        try { return JSON.parse(data.value); } catch(e) {}
+      }
+      // Fallback: horario por defecto si no hay nada configurado
+      return {
+        lunes:     { open: false },
+        martes:    { open: false },
+        miercoles: { open: true, from: '19:00', to: '23:30' },
+        jueves:    { open: true, from: '19:00', to: '23:30' },
+        viernes:   { open: true, from: '19:00', to: '23:30' },
+        sabado:    { open: true, from: '12:00', to: '23:30' },
+        domingo:   { open: true, from: '12:00', to: '23:30' },
+      };
+    }
+
+    // ── Cargar días especiales desde la BD ──────────────────
+    async function getSpecialDay(dateStr) {
+      const { data } = await db.from('special_days')
+        .select('*').eq('date', dateStr).eq('restaurant_id', RID).single();
+      return data || null;
+    }
+
+    // ── Generar slots cada 30 min entre from y to ───────────
+    function generateSlots(fromTime, toTime) {
+      const slots = [];
+      const [fh, fm] = fromTime.split(':').map(Number);
+      const [th, tm] = toTime.split(':').map(Number);
+      const cur  = new Date(); cur.setHours(fh, fm, 0, 0);
+      const end  = new Date(); end.setHours(th, tm, 0, 0);
+      while (cur <= end) {
+        slots.push(cur.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit', hour12:false }));
+        cur.setMinutes(cur.getMinutes() + 30);
+      }
+      return slots;
+    }
+
+    // ── Limpiar slots anteriores ────────────────────────────
+    function clearSlots() {
+      document.querySelectorAll('.time-slots-section, .closed-message, .loader-dots').forEach(el => el.remove());
+      selectedSlot = null;
+    }
+
+    function showClosed(html) {
+      const div = document.createElement('div');
+      div.className = 'closed-message';
+      div.innerHTML = html;
+      document.querySelector('.reservation-filters').after(div);
+    }
+
+    // ── Renderizar disponibilidad ───────────────────────────
+    async function renderSlots() {
+      clearSlots();
+      const dateVal = dateInput.value;
+      if (!dateVal) return;
+
+      // Loader
+      const loader = document.createElement('div');
+      loader.className = 'loader-dots';
+      loader.innerHTML = '<span></span><span></span><span></span>';
+      document.querySelector('.reservation-filters').after(loader);
+
+      // Llamadas en paralelo
+      const dayNames = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+      const dayIndex  = new Date(dateVal + 'T12:00:00').getDay(); // evita problema de zona horaria
+      const dayKey    = dayNames[dayIndex];
+
+      const [schedule, specialDay, existing] = await Promise.all([
+        getWeeklySchedule(),
+        getSpecialDay(dateVal),
+        db.from('reservations').select('time,zone').eq('date', dateVal).eq('restaurant_id', RID),
+      ]);
+      loader.remove();
+
+      const bookings = existing.data || [];
+
+      // ── Lógica de apertura ───────────────────────────────
+      let isOpen   = true;
+      let fromTime = '12:00';
+      let toTime   = '23:30';
+      let closedReason = '';
+
+      // 1. Día especial tiene prioridad absoluta
+      if (specialDay) {
+        if (specialDay.is_closed) {
+          showClosed('<i class="fas fa-moon"></i> Cerrado por festivo o día especial.');
+          return;
+        } else {
+          // Abierto de forma excepcional — usamos horario general del día o defecto
+          isOpen = true;
+        }
+      } else {
+        // 2. Consultar horario semanal
+        const daySchedule = schedule[dayKey];
+        if (!daySchedule || daySchedule.open === false) {
+          showClosed(`<i class="fas fa-moon"></i> Cerramos los ${dayKey.charAt(0).toUpperCase()+dayKey.slice(1)}s.`);
+          return;
+        }
+        fromTime = daySchedule.from || '12:00';
+        toTime   = daySchedule.to   || '23:30';
+      }
+
+      const slots = generateSlots(fromTime, toTime);
+      if (!slots.length) {
+        showClosed('<i class="fas fa-info-circle"></i> No hay horario disponible para este día.');
+        return;
+      }
+
+      // ── Renderizar por zona ──────────────────────────────
+      ZONES.forEach(zone => {
+        const section = document.createElement('section');
+        section.className = 'time-slots-section';
+        section.innerHTML = `<h3>${zone.title}</h3><div class="slots-grid"></div>`;
+        const grid = section.querySelector('.slots-grid');
+
+        slots.forEach((time, idx) => {
+          const count = bookings.filter(b => b.time === time && b.zone === zone.id).length;
+          const full  = count >= ZONE_CAPACITY[zone.id];
+          const btn   = document.createElement('button');
+          btn.style.animationDelay = `${idx * 0.03}s`;
+
+          if (full) {
+            btn.className = 'time-slot full';
+            btn.disabled = true;
+            btn.innerHTML = `<span class="cross-time">${time}</span><span class="label-full">completo</span>`;
+          } else {
+            btn.className = 'time-slot';
+            btn.textContent = time;
+            btn.onclick = () => {
+              document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+              btn.classList.add('selected');
+              selectedSlot = { time, zone: zone.id, zoneName: zone.title, date: dateVal };
+            };
+          }
+          grid.appendChild(btn);
+        });
+        document.querySelector('main').appendChild(section);
+      });
+    }
+
+    // ── Guardar reserva en DB ───────────────────────────────
+    async function saveReservation(res) {
+      const { error } = await db.from('reservations').insert([{
+        restaurant_id: RID,
+        date: res.date, time: res.time,
+        zone: res.zone, zonename: res.zoneName,
+        people: parseInt(res.people),
+        name: res.name, phone: res.phone, email: res.email,
+        status: 'pending',
+      }]);
+      if (error) throw new Error(error.message);
+    }
+
+    // ── Enviar email via EmailJS ────────────────────────────
+    async function sendEmail(res) {
+      const { data: cfg } = await db.from('settings').select('*').eq('restaurant_id', RID);
+      if (!cfg) return;
+      const get = k => cfg.find(s => s.key === k)?.value;
+      const pub = get('ejs_public_key'), svc = get('ejs_service_id'), tplAdmin = get('ejs_template_admin');
+      if (!pub || !svc || !tplAdmin) return; // Si no configurado, se ignora silenciosamente
+      emailjs.init(pub);
+      await emailjs.send(svc, tplAdmin, {
+        to_email: get('ejs_admin_email'),
+        client_name: res.name, client_phone: res.phone, client_email: res.email,
+        res_date: res.date, res_time: res.time, res_people: res.people, res_zone: res.zoneName,
+        bar_name: APP_CONFIG.barName,
+      });
+      const tplClient = get('ejs_template_client');
+      if (tplClient && res.email) {
+        try {
+          await emailjs.send(svc, tplClient, {
+            to_email: res.email, client_name: res.name,
+            res_date: res.date, res_time: res.time,
+            res_zone: res.zoneName, res_people: res.people,
+            bar_name: APP_CONFIG.barName,
+          });
+        } catch(e) { console.warn('Email cliente falló:', e); }
+      }
+    }
+
+    // ── Eventos ─────────────────────────────────────────────
+    dateInput.value = new Date().toISOString().split('T')[0];
+    dateInput.onchange = renderSlots;
+
+    continueBtn.onclick = () => {
+      if (!selectedSlot) {
+        continueBtn.innerHTML = '<i class="fas fa-exclamation-circle"></i> Selecciona una hora primero';
+        setTimeout(() => { continueBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Continuar con la reserva'; }, 2000);
+        return;
+      }
+      document.getElementById('summary-date').textContent   = selectedSlot.date;
+      document.getElementById('summary-time').textContent   = selectedSlot.time;
+      document.getElementById('summary-zone').textContent   = selectedSlot.zoneName;
+      document.getElementById('summary-people').textContent = peopleSelect.value + ' personas';
+      modal.classList.remove('hidden');
+    };
+
+    document.querySelector('.close-modal').onclick = () => modal.classList.add('hidden');
+
+    document.getElementById('contact-form').onsubmit = async e => {
+      e.preventDefault();
+      const btn = e.submitter || document.querySelector('#contact-form .close-success');
+      const orig = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+
+      const newRes = {
+        name:    document.getElementById('user-name').value,
+        phone:   document.getElementById('user-phone').value,
+        email:   document.getElementById('user-email').value,
+        people:  peopleSelect.value,
+        ...selectedSlot,
+      };
+
+      try {
+        await saveReservation(newRes);
+        try { await sendEmail(newRes); } catch(e) { console.warn('Email no enviado:', e); }
+
+        modal.classList.add('hidden');
+        document.getElementById('success-name').textContent    = newRes.name;
+        document.getElementById('res-final-date').textContent  = newRes.date;
+        document.getElementById('res-final-time').textContent  = newRes.time;
+        document.getElementById('res-final-zone').textContent  = newRes.zoneName;
+        document.getElementById('res-final-people').textContent= newRes.people + ' personas';
+        document.getElementById('success-modal').classList.remove('hidden');
+      } catch(err) {
+        btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error: ' + err.message;
+        setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 3000);
+      }
+    };
+
+    document.getElementById('go-home-btn').onclick = () => location.href = 'index.html';
+
+    // ── Arrancar ─────────────────────────────────────────────
+    renderSlots();
+  </script>
+</body>
+</html>
