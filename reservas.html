@@ -214,6 +214,10 @@
         const [th, tm] = t.split(':').map(Number);
         const cur = new Date(); cur.setHours(fh, fm, 0, 0);
         const end = new Date(); end.setHours(th, tm, 0, 0);
+        
+        // La última reserva es 30 min antes del cierre (estándar de restauración)
+        end.setMinutes(end.getMinutes() - 30);
+        
         while (cur <= end) {
           slots.push(cur.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit', hour12:false }));
           cur.setMinutes(cur.getMinutes() + 30);
