@@ -11,7 +11,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('supabase') || e.request.url.includes('emailjs')) return;
+  if (e.request.url.includes('supabase') || e.request.url.includes('emailjs') || e.request.url.includes('admin')) return;
+  if (e.request.url.includes('reservas.html')) return;
   e.respondWith(caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
     if (!res || res.status !== 200) return res;
     const clone = res.clone();
