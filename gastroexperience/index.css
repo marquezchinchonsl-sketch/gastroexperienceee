@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════════
+﻿/* ═══════════════════════════════════════════════════════
    GastroExperience — TEMA CLARO (Light & Modern)
    ═══════════════════════════════════════════════════════ */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Outfit:wght@300;400;500;600;700&display=swap');
@@ -40,7 +40,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);line-he
 }
 .hero-bg{
   position:absolute; inset:0;
-  background-image:url('images/hero.jpg');
+  background-image:url('images/hero.png');
   background-size:cover; background-position:center;
   transform:scale(1.05); transition:transform 8s ease; will-change:transform;
 }
