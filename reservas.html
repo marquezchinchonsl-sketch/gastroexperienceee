@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -15,7 +15,7 @@
 <body>
 
   <header class="reservation-header">
-    <a href="/" class="back-link"><i class="fas fa-arrow-left"></i></a>
+    <a href="index.html" class="back-link"><i class="fas fa-arrow-left"></i></a>
     <div class="header-content">
       <h1 id="res-bar-name">Reservar Mesa</h1>
       <p id="res-bar-type"></p>
@@ -122,11 +122,28 @@
 
     const db    = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
     const RID   = APP_CONFIG.restaurantId;
-    const ZONES = APP_CONFIG.zones;
 
-    // Capacidad por zona
-    const ZONE_CAPACITY = {};
-    ZONES.forEach(z => ZONE_CAPACITY[z.id] = z.capacity);
+    // Zonas: se cargan dinámicamente desde Supabase (el admin las configura)
+    let ZONES = [];
+    let ZONE_CAPACITY = {};
+
+    window.loadZones = async function() {
+      try {
+        const { data, error } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'zones_config').single();
+        if (error && error.code !== 'PGRST116') throw error;
+        
+        if (data?.value) {
+          ZONES = JSON.parse(data.value);
+        } else {
+          ZONES = APP_CONFIG.zones;
+        }
+      } catch (err) {
+        console.warn('Error cargando zonas, usando config:', err);
+        ZONES = APP_CONFIG.zones;
+      }
+      ZONE_CAPACITY = {};
+      ZONES.forEach(z => ZONE_CAPACITY[z.id] = parseInt(z.capacity) || 0);
+    }
 
     const dateInput   = document.getElementById('date-select');
     const peopleSelect= document.getElementById('people-select');
@@ -134,6 +151,10 @@
     const modal       = document.getElementById('reservation-modal');
 
     let selectedSlot = null;
+
+    // NOTA: Los WebSockets de refresco (reservations, settings, special_days)
+    // se gestionan en config.js para evitar canales duplicados.
+    // El WebSocket de zones_config ya está cubierto por 'public:settings_client' en config.js.
 
     // ── Cargar horario semanal desde la BD ──────────────────
     async function getWeeklySchedule() {
@@ -189,7 +210,11 @@
     }
 
     // ── Renderizar disponibilidad ───────────────────────────
-    async function renderSlots() {
+    window.renderSlots = async function() {
+      // Asegurar que las zonas estén siempre cargadas antes de renderizar
+      if (ZONES.length === 0) await loadZones();
+      // Asegurar que las zonas estén siempre cargadas antes de renderizar
+      if (ZONES.length === 0) await loadZones();
       clearSlots();
       const dateVal = dateInput.value;
       if (!dateVal) return;
@@ -205,14 +230,16 @@
       const dayIndex  = new Date(dateVal + 'T12:00:00').getDay(); // evita problema de zona horaria
       const dayKey    = dayNames[dayIndex];
 
-      const [schedule, specialDay, existing] = await Promise.all([
+      const [schedule, specialDay, existing, cfgLimit] = await Promise.all([
         getWeeklySchedule(),
         getSpecialDay(dateVal),
-        db.from('reservations').select('time,zone').eq('date', dateVal).eq('restaurant_id', RID),
+        db.from('reservations').select('time,zone,people').eq('date', dateVal).eq('restaurant_id', RID),
+        db.from('settings').select('value').eq('restaurant_id', RID).eq('key','limit_pax').single()
       ]);
       loader.remove();
 
       const bookings = existing.data || [];
+      const globalLimit = cfgLimit?.data?.value ? parseInt(cfgLimit.data.value) : 0;
 
       // ── Lógica de apertura ───────────────────────────────
       let isOpen   = true;
@@ -246,73 +273,134 @@
         return;
       }
 
+      // ── Calcular pax TOTAL por zona en el día seleccionado ─
+      // (no por hora, sino el total del día para el aforo máximo del local)
+      const dailyPaxByZone = {};
+      ZONES.forEach(z => dailyPaxByZone[z.id] = 0);
+      bookings.forEach(b => {
+        if (dailyPaxByZone[b.zone] !== undefined) {
+          dailyPaxByZone[b.zone] += parseInt(b.people) || 0;
+        }
+      });
+
       // ── Renderizar por zona ──────────────────────────────
       ZONES.forEach(zone => {
+        const zoneCapacity  = parseInt(ZONE_CAPACITY[zone.id]) || 0;
+        const zoneDailyPax  = dailyPaxByZone[zone.id] || 0;
+        const zoneFreeSpots = zoneCapacity > 0 ? Math.max(0, zoneCapacity - zoneDailyPax) : Infinity;
+        const reqPax        = parseInt(peopleSelect.value);
+
+        // Si toda la zona está llena para hoy, mostrar sección bloqueada
+        const zoneFullForDay = zoneCapacity > 0 && zoneFreeSpots < reqPax;
+
         const section = document.createElement('section');
         section.className = 'time-slots-section';
-        section.innerHTML = `<h3>${zone.title}</h3><div class="slots-grid"></div>`;
+
+        // Cabecera con indicador de disponibilidad
+        let availBadge = '';
+        if (zoneCapacity > 0) {
+          if (zoneFreeSpots <= 0) {
+            availBadge = `<span style="font-size:0.75rem; font-weight:600; color:var(--error); background:rgba(220,38,38,0.1); padding:3px 10px; border-radius:20px; margin-left:10px;">🚫 Sin plazas libres</span>`;
+          } else if (zoneFreeSpots <= 5) {
+            availBadge = `<span style="font-size:0.75rem; font-weight:600; color:var(--warning); background:rgba(217,119,6,0.1); padding:3px 10px; border-radius:20px; margin-left:10px;">⚠️ Últimas ${zoneFreeSpots} plazas</span>`;
+          } else {
+            availBadge = `<span style="font-size:0.75rem; font-weight:600; color:var(--success); background:rgba(5,150,105,0.1); padding:3px 10px; border-radius:20px; margin-left:10px;">✓ ${zoneFreeSpots} plazas disponibles</span>`;
+          }
+        }
+
+        section.innerHTML = `<h3>${zone.title}${availBadge}</h3><div class="slots-grid"></div>`;
         const grid = section.querySelector('.slots-grid');
 
-        slots.forEach((time, idx) => {
-          const count = bookings.filter(b => b.time === time && b.zone === zone.id).length;
-          const full  = count >= ZONE_CAPACITY[zone.id];
-          const btn   = document.createElement('button');
-          btn.style.animationDelay = `${idx * 0.03}s`;
+        if (zoneFullForDay) {
+          grid.innerHTML = `<p style="color:var(--text-dim); font-size:0.9rem; padding:12px 0; grid-column:1/-1;">Esta zona está completa para el día seleccionado con el número de personas elegido.</p>`;
+        } else {
+          slots.forEach((time, idx) => {
+            // Límite por hora en esa zona (para evitar solapamientos en el mismo turno)
+            const slotZonePax  = bookings.filter(b => b.time === time && b.zone === zone.id).reduce((s,r) => s+(parseInt(r.people)||0), 0);
+            const slotTotalPax = bookings.filter(b => b.time === time).reduce((s,r) => s+(parseInt(r.people)||0), 0);
 
-          if (full) {
-            btn.className = 'time-slot full';
-            btn.disabled = true;
-            btn.innerHTML = `<span class="cross-time">${time}</span><span class="label-full">completo</span>`;
-          } else {
-            btn.className = 'time-slot';
-            btn.textContent = time;
-            btn.onclick = () => {
-              document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
-              btn.classList.add('selected');
-              selectedSlot = { time, zone: zone.id, zoneName: zone.title, date: dateVal };
-            };
-          }
-          grid.appendChild(btn);
-        });
+            let full = false;
+            // Check 1: Aforo total diario de la zona
+            if (zoneCapacity > 0 && (zoneDailyPax + reqPax) > zoneCapacity) full = true;
+            // Check 2: Límite global por hora (limit_pax en config)
+            if (globalLimit > 0 && (slotTotalPax + reqPax) > globalLimit) full = true;
+
+            const btn = document.createElement('button');
+            btn.style.animationDelay = `${idx * 0.03}s`;
+
+            if (full) {
+              btn.className = 'time-slot full';
+              btn.disabled = true;
+              btn.innerHTML = `<span class="cross-time">${time}</span><span class="label-full">completo</span>`;
+            } else {
+              btn.className = 'time-slot';
+              btn.textContent = time;
+              btn.onclick = () => {
+                document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+                btn.classList.add('selected');
+                selectedSlot = { time, zone: zone.id, zoneName: zone.title, date: dateVal };
+              };
+            }
+            grid.appendChild(btn);
+          });
+        }
+
         document.querySelector('main').appendChild(section);
       });
     }
 
     // ── Guardar reserva en DB ───────────────────────────────
     async function saveReservation(res) {
+      let isAutoConfirm = false;
+      try {
+        const { data: cfg } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'auto_confirm').single();
+        if (cfg && cfg.value === 'true') isAutoConfirm = true;
+      } catch(e) {}
+      
+      const status = isAutoConfirm ? 'confirmed' : 'pending';
+
       const { error } = await db.from('reservations').insert([{
         restaurant_id: RID,
         date: res.date, time: res.time,
         zone: res.zone, zonename: res.zoneName,
         people: parseInt(res.people),
         name: res.name, phone: res.phone, email: res.email,
-        status: 'pending',
+        status: status,
       }]);
       if (error) throw new Error(error.message);
+      return status;
     }
 
     // ── Enviar email via EmailJS ────────────────────────────
-    async function sendEmail(res) {
+    async function sendEmail(res, status) {
       const { data: cfg } = await db.from('settings').select('*').eq('restaurant_id', RID);
       if (!cfg) return;
       const get = k => cfg.find(s => s.key === k)?.value;
       const pub = get('ejs_public_key'), svc = get('ejs_service_id'), tplAdmin = get('ejs_template_admin');
-      if (!pub || !svc || !tplAdmin) return; // Si no configurado, se ignora silenciosamente
+      if (!pub || !svc) return;
+      
       emailjs.init(pub);
-      await emailjs.send(svc, tplAdmin, {
-        to_email: get('ejs_admin_email'),
-        client_name: res.name, client_phone: res.phone, client_email: res.email,
-        res_date: res.date, res_time: res.time, res_people: res.people, res_zone: res.zoneName,
-        bar_name: APP_CONFIG.barName,
-      });
+      
+      if (tplAdmin) {
+        try {
+          await emailjs.send(svc, tplAdmin, {
+            to_email: get('ejs_admin_email'),
+            client_name: res.name, client_phone: res.phone, client_email: res.email,
+            res_date: res.date, res_time: res.time, res_people: res.people, res_zone: res.zoneName,
+            bar_name: APP_CONFIG.barName,
+          });
+        } catch(e) { console.warn('Email admin falló:', e); }
+      }
+
       const tplClient = get('ejs_template_client');
-      if (tplClient && res.email) {
+      // Enviar confirmación al cliente solo si la reserva se autoconfirmó (status == confirmed)
+      if (tplClient && res.email && status === 'confirmed') {
         try {
           await emailjs.send(svc, tplClient, {
-            to_email: res.email, client_name: res.name,
+            to_email: res.email, client_name: res.name, client_email: res.email,
             res_date: res.date, res_time: res.time,
             res_zone: res.zoneName, res_people: res.people,
-            bar_name: APP_CONFIG.barName,
+            bar_name: APP_CONFIG.barName, reservation_date: res.date, reservation_time: res.time
           });
         } catch(e) { console.warn('Email cliente falló:', e); }
       }
@@ -321,6 +409,8 @@
     // ── Eventos ─────────────────────────────────────────────
     dateInput.value = new Date().toISOString().split('T')[0];
     dateInput.onchange = renderSlots;
+
+    peopleSelect.onchange = renderSlots;
 
     continueBtn.onclick = () => {
       if (!selectedSlot) {
@@ -353,8 +443,8 @@
       };
 
       try {
-        await saveReservation(newRes);
-        try { await sendEmail(newRes); } catch(e) { console.warn('Email no enviado:', e); }
+        const status = await saveReservation(newRes);
+        try { await sendEmail(newRes, status); } catch(e) { console.warn('Email no enviado:', e); }
 
         modal.classList.add('hidden');
         document.getElementById('success-name').textContent    = newRes.name;
@@ -371,8 +461,9 @@
 
     document.getElementById('go-home-btn').onclick = () => location.href = '/';
 
-    // ── Arrancar ─────────────────────────────────────────────
-    renderSlots();
+    // ── Arrancar (cargamos zonas antes de renderizar) ───────────────────
+    loadZones().then(() => renderSlots());
+
   </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -180,6 +180,16 @@
     // ── PWA ──────────────────────────────────────────────────
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    // ── Tracking QR Scans ───────────────────────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('ref') === 'qr') {
+      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'qr_scans').single()
+        .then(({ data }) => {
+          let count = parseInt(data?.value || 0) + 1;
+          db.from('settings').upsert({ restaurant_id: APP_CONFIG.restaurantId, key: 'qr_scans', value: count.toString() }).then();
+        });
     }
 
     loadCategories();

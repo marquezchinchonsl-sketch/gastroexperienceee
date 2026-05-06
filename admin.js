@@ -26,7 +26,7 @@ ALLERGENS.forEach(a => {
 // Stat cards para zonas
 const zsc = document.getElementById('zone-stats-container');
 APP_CONFIG.zones.forEach(z => {
-  zsc.innerHTML += `<div class="stat-card"><h3>${z.title}</h3><p id="count-${z.id}">0</p></div>`;
+  zsc.innerHTML += `<div class="stat-card"><h3>${z.title}</h3><p id="count-${z.id}">0</p><div style="width:100%;height:6px;background:var(--surface-3);border-radius:3px;margin-top:8px;overflow:hidden;"><div id="bar-${z.id}" style="width:0%;height:100%;background:var(--gold);transition:width 0.5s;"></div></div></div>`;
 });
 
 // ── Toast ─────────────────────────────────────────────────
@@ -45,7 +45,10 @@ function checkLogin() {
   if (APP_CONFIG.adminPasswords.includes(pwInput.value.trim())) {
     sessionStorage.setItem('admin_auth','true');
     loginOverlay.classList.add('login-hide');
-    loadDashboard();
+    const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics };
+    if (map[activeTab]) map[activeTab]();
+    checkOnboarding();
   } else {
     pwInput.classList.add('shake');
     pwInput.value = '';
@@ -54,7 +57,25 @@ function checkLogin() {
 }
 document.getElementById('login-btn').onclick = checkLogin;
 pwInput.onkeydown = e => { if(e.key==='Enter') checkLogin(); };
-if (sessionStorage.getItem('admin_auth')==='true') { loginOverlay.classList.add('login-hide'); loadDashboard(); }
+if (sessionStorage.getItem('admin_auth')==='true') {
+  loginOverlay.classList.add('login-hide');
+  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
+  const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap };
+  if (map[activeTab]) map[activeTab]();
+  checkOnboarding();
+}
+
+// ── WebSockets ───────────────────────────────────────────
+db.channel('public:reservations')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `restaurant_id=eq.${RID}` }, () => {
+    if(document.getElementById('tab-reservations').classList.contains('active-tab')) loadDashboard();
+    if(document.getElementById('tab-metrics').classList.contains('active-tab')) loadMetrics();
+  }).subscribe();
+
+db.channel('public:menu_items')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items', filter: `restaurant_id=eq.${RID}` }, () => {
+    if(document.getElementById('tab-menu').classList.contains('active-tab')) loadProducts();
+  }).subscribe();
 
 // ── Nav tabs ──────────────────────────────────────────────
 document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -63,7 +84,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active-tab');
-    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR };
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap };
     if (map[tab.dataset.tab]) map[tab.dataset.tab]();
   };
 });
@@ -84,15 +105,31 @@ function updateStats(res) {
   document.getElementById('total-people').textContent = res.reduce((s,r) => s + parseInt(r.people||0), 0);
   APP_CONFIG.zones.forEach(z => {
     const el = document.getElementById(`count-${z.id}`);
-    if (el) el.textContent = res.filter(r => r.zone === z.id).length;
+    const bar = document.getElementById(`bar-${z.id}`);
+    const pax = res.filter(r => r.zone === z.id).reduce((s,r) => s + parseInt(r.people||0), 0);
+    const capacity = z.capacity || 1;
+    const pct = Math.min(100, Math.round((pax/capacity)*100));
+    
+    if (el) el.innerHTML = `${pax} pax <span style="font-size:0.8rem; color:var(--text-dim);">(${pct}%)</span>`;
+    if (bar) {
+      bar.style.width = `${pct}%`;
+      bar.style.background = pct >= 100 ? 'var(--error)' : (pct >= 80 ? 'var(--warning)' : 'var(--gold)');
+    }
   });
 }
 
 function renderTable(res) {
   const tbody = document.getElementById('reservations-body');
   const noMsg = document.getElementById('no-data-message');
+  const tableContainer = document.querySelector('#tab-reservations .table-container');
   tbody.innerHTML = '';
-  noMsg.style.display = res.length ? 'none' : 'flex';
+  if (res.length === 0) {
+    noMsg.style.display = 'block';
+    tableContainer.style.display = 'none';
+  } else {
+    noMsg.style.display = 'none';
+    tableContainer.style.display = 'block';
+  }
   res.forEach(r => {
     const confirmed = r.status === 'confirmed';
     const tr = document.createElement('tr');
@@ -116,28 +153,51 @@ function renderTable(res) {
 
 async function confirmReservation(id, email, name, date, time) {
   if (!confirm(`¿Confirmar reserva de ${name} y enviar email?`)) return;
-  const { data: cfg } = await db.from('settings').select('*').eq('restaurant_id', RID);
-  const get = k => cfg?.find(s => s.key === k)?.value;
-  const pub = get('ejs_public_key'), svc = get('ejs_service_id'), tpl = get('ejs_template_client');
-  if (!pub || !svc || !tpl) { toast('Configura EmailJS primero en la pestaña Configuración','error'); return; }
-  const { error } = await db.from('reservations').update({ status:'confirmed' }).eq('id', id);
-  if (error) { toast('Error BD: '+error.message,'error'); return; }
+  
   try {
+    const { data: cfg, error: cfgErr } = await db.from('settings').select('*').eq('restaurant_id', RID);
+    if (cfgErr) throw cfgErr;
+
+    const get = k => cfg?.find(s => s.key === k)?.value;
+    const pub = get('ejs_public_key'), svc = get('ejs_service_id'), tpl = get('ejs_template_client');
+    
+    if (!pub || !svc || !tpl) { 
+      toast('Configura EmailJS primero en la pestaña Ajustes','error'); 
+      return; 
+    }
+
+    const { error: updErr } = await db.from('reservations').update({ status:'confirmed' }).eq('id', id).eq('restaurant_id', RID);
+    if (updErr) throw updErr;
+
     emailjs.init(pub);
     await emailjs.send(svc, tpl, { to_name:name, to_email:email, client_email:email, reservation_date:date, reservation_time:time, bar_name: APP_CONFIG.barName });
+    
     toast('Reserva confirmada y email enviado ✓','success');
-  } catch(e) { toast('Reserva confirmada pero email falló: '+e.text,'error'); }
-  loadDashboard();
+    loadDashboard();
+  } catch(err) {
+    console.error('Error al confirmar:', err);
+    toast('Error: ' + (err.message || 'No se pudo completar la acción'), 'error');
+  }
 }
 
-window.confirmReservation = confirmReservation;
+async function deleteReservation(id) {
+  if (!confirm('¿Eliminar esta reserva definitivamente?')) return;
+  
+  try {
+    const { error } = await db.from('reservations').delete().eq('id', id).eq('restaurant_id', RID);
+    if (error) throw error;
+    
+    toast('Reserva eliminada con éxito','info');
+    loadDashboard();
+  } catch(err) {
+    console.error('Error al eliminar:', err);
+    toast('No se pudo eliminar: ' + err.message, 'error');
+  }
+}
 
-window.deleteReservation = async id => {
-  if (!confirm('¿Eliminar esta reserva?')) return;
-  await db.from('reservations').delete().eq('id', id);
-  loadDashboard();
-  toast('Reserva eliminada','info');
-};
+// Asignación global inmediata
+window.confirmReservation = confirmReservation;
+window.deleteReservation = deleteReservation;
 
 document.getElementById('refresh-btn').onclick = () => { loadDashboard(); toast('Actualizado','info'); };
 
@@ -190,19 +250,43 @@ db.channel('realtime-res').on('postgres_changes',{ event:'INSERT', schema:'publi
 let allProducts = [];
 
 async function loadProducts() {
-  const { data } = await db.from('menu_items').select('*').eq('restaurant_id', RID).order('position');
-  allProducts = data || [];
+  try {
+    const { data, error } = await db.from('menu_items').select('*').eq('restaurant_id', RID).order('position');
+    if (error) throw error;
+    allProducts = data || [];
+  } catch (err) {
+    console.warn('Fallo al cargar de BD, usando datos demo:', err);
+    // Fallback a demo data
+    allProducts = [];
+    if (typeof DEMO_PRODUCTS !== 'undefined') {
+      Object.keys(DEMO_PRODUCTS).forEach(cat => {
+        const demo = DEMO_PRODUCTS[cat].map((p, i) => ({ ...p, id: 'demo-'+cat+'-'+i, category: cat, restaurant_id: RID, visible: true }));
+        allProducts = allProducts.concat(demo);
+      });
+    }
+    toast('Nota: Cargando datos de demostración (Error BD)', 'info');
+  }
   renderProducts();
 }
 
 function renderProducts() {
   const tbody   = document.getElementById('products-body');
+  const noProductsMsg = document.getElementById('no-products-message');
+  const tableContainer = document.querySelector('#tab-menu .table-container');
   const catVal  = document.getElementById('category-filter').value;
   const search  = document.getElementById('product-search').value.toLowerCase();
   let filtered  = allProducts.filter(p => p.category === catVal);
   if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
   document.getElementById('displayed-products-count').textContent = filtered.length;
   tbody.innerHTML = '';
+  
+  if (filtered.length === 0) {
+    noProductsMsg.style.display = 'block';
+    tableContainer.style.display = 'none';
+  } else {
+    noProductsMsg.style.display = 'none';
+    tableContainer.style.display = 'block';
+  }
   filtered.forEach(p => {
     const allergenBadges = ALLERGENS.filter(a => p.allergens?.[a]).map(a => `<span style="font-size:0.65rem;padding:2px 6px;background:var(--surface-3);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);">${ALLERGEN_NAMES[a]}</span>`).join(' ');
     const tr = document.createElement('tr');
@@ -211,7 +295,7 @@ function renderProducts() {
       <td style="text-align:center;"><i class="fas ${p.visible?'fa-eye':'fa-eye-slash'}" style="color:${p.visible?'var(--success)':'var(--error)'}"></i></td>
       <td style="display:flex;align-items:center;gap:10px;">
         ${p.image_url?`<img src="${p.image_url}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--border);" alt="">`:''}
-        <div><strong>${p.name}</strong>${p.is_sugerencia?' ⭐':''}<div style="font-size:0.75rem;color:var(--text-dim);">${(p.info||'').substring(0,40)}</div></div>
+        <div><strong>${p.name}</strong>${p.is_sugerencia?' <span title="Recomendación" style="font-size:0.9rem;">⭐</span>':''}${p.allergens?.bestseller?' <span title="Más Vendido" style="font-size:0.9rem;">🔥</span>':''}<div style="font-size:0.75rem;color:var(--text-dim);">${(p.info||'').substring(0,40)}</div></div>
       </td>
       <td style="color:var(--text-dim);font-size:0.82rem;">${p.category}</td>
       <td style="color:var(--success);font-weight:700;">${parseFloat(p.price).toFixed(2)} €</td>
@@ -238,6 +322,7 @@ document.getElementById('add-product-btn').onclick = () => {
   document.getElementById('modal-title').textContent = 'Añadir Producto';
   document.getElementById('image-preview-container').style.display = 'none';
   ALLERGENS.forEach(a => document.getElementById(`a-${a}`).checked = false);
+  if(document.getElementById('p-bestseller')) document.getElementById('p-bestseller').checked = false;
   productModal.classList.add('open');
 };
 
@@ -257,6 +342,7 @@ window.openEditModal = id => {
   const prevC= document.getElementById('image-preview-container');
   if (p.image_url) { prev.src = p.image_url; prevC.style.display='block'; } else { prevC.style.display='none'; }
   ALLERGENS.forEach(a => document.getElementById(`a-${a}`).checked = p.allergens?.[a]||false);
+  if(document.getElementById('p-bestseller')) document.getElementById('p-bestseller').checked = p.allergens?.bestseller||false;
   document.getElementById('modal-title').textContent = 'Editar Producto';
   productModal.classList.add('open');
 };
@@ -287,6 +373,7 @@ document.getElementById('product-form').onsubmit = async e => {
   }
   const allergens = {};
   ALLERGENS.forEach(a => allergens[a] = document.getElementById(`a-${a}`).checked);
+  if(document.getElementById('p-bestseller')) allergens.bestseller = document.getElementById('p-bestseller').checked;
   const payload = {
     restaurant_id: RID,
     name:          document.getElementById('p-name').value,
@@ -305,6 +392,7 @@ document.getElementById('product-form').onsubmit = async e => {
   loadProducts();
   toast(id ? 'Producto actualizado ✓' : 'Producto añadido ✓','success');
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Producto';
+  checkOnboarding();
 };
 
 window.deleteProduct = async id => {
@@ -314,21 +402,58 @@ window.deleteProduct = async id => {
   toast('Producto eliminado','info');
 };
 
-// Restaurar carta original
-document.getElementById('import-data-btn').onclick = async () => {
-  if (!confirm('¿Restaurar carta original? Borrará los productos actuales de esta categoría.')) return;
-  toast('Esta función carga la carta de muestra. Importa tus productos desde el panel.','info');
+// Importar carta inteligente
+document.getElementById('import-data-btn').onclick = () => {
+  const sel = document.getElementById('import-category-select');
+  sel.innerHTML = '';
+  CATEGORIES.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.label; sel.appendChild(o); });
+  document.getElementById('import-text').value = '';
+  document.getElementById('import-modal').classList.add('open');
 };
 
+document.getElementById('close-import-modal').onclick = () => document.getElementById('import-modal').classList.remove('open');
+
+document.getElementById('process-import-btn').onclick = async () => {
+  const btn = document.getElementById('process-import-btn');
+  const text = document.getElementById('import-text').value;
+  const cat = document.getElementById('import-category-select').value;
+  if(!text.trim()) { toast('Pega texto primero','error'); return; }
+  
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+  
+  const lines = text.split('\n');
+  const payloads = [];
+  lines.forEach(line => {
+    line = line.trim();
+    if(!line) return;
+    // Regex para "Nombre plato 12.50" o "Nombre plato - 12,50€"
+    const match = line.match(/(.+?)(?:[\s:-]*)([\d]+[.,][\d]{2})[\s]*€?$/);
+    if(match) {
+      payloads.push({ restaurant_id: RID, name: match[1].trim(), price: parseFloat(match[2].replace(',','.')), category: cat, visible: true, allergens: {} });
+    } else {
+      payloads.push({ restaurant_id: RID, name: line, price: 0, category: cat, visible: true, allergens: {} });
+    }
+  });
+  
+  if (payloads.length > 0) {
+    await db.from('menu_items').insert(payloads);
+    toast(`${payloads.length} platos importados ✓`, 'success');
+    loadProducts();
+    if (typeof checkOnboarding === 'function') checkOnboarding();
+  }
+  
+  document.getElementById('import-modal').classList.remove('open');
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Extraer y Crear Platos';
+};
 // ── HORARIO SEMANAL (editor completo por día) ─────────────
 const DAYS = [
   { key: 'lunes',     label: 'Lunes',     default: { open: false } },
   { key: 'martes',   label: 'Martes',    default: { open: false } },
-  { key: 'miercoles',label: 'Miércoles', default: { open: true, from: '19:00', to: '23:30' } },
-  { key: 'jueves',   label: 'Jueves',    default: { open: true, from: '19:00', to: '23:30' } },
-  { key: 'viernes',  label: 'Viernes',   default: { open: true, from: '19:00', to: '23:30' } },
-  { key: 'sabado',   label: 'Sábado',    default: { open: true, from: '12:00', to: '23:30' } },
-  { key: 'domingo',  label: 'Domingo',   default: { open: true, from: '12:00', to: '23:30' } },
+  { key: 'miercoles',label: 'Miércoles', default: { open: true, from: '13:00', to: '16:00', from2: '20:00', to2: '23:30' } },
+  { key: 'jueves',   label: 'Jueves',    default: { open: true, from: '13:00', to: '16:00', from2: '20:00', to2: '23:30' } },
+  { key: 'viernes',  label: 'Viernes',   default: { open: true, from: '13:00', to: '16:00', from2: '20:00', to2: '23:30' } },
+  { key: 'sabado',   label: 'Sábado',    default: { open: true, from: '13:00', to: '16:00', from2: '20:00', to2: '23:30' } },
+  { key: 'domingo',  label: 'Domingo',   default: { open: true, from: '13:00', to: '16:00', from2: '20:00', to2: '23:30' } },
 ];
 
 async function loadSchedule() {
@@ -346,38 +471,69 @@ function renderScheduleGrid(schedule) {
     const s = schedule[day.key] || day.default;
     const isOpen = s.open !== false;
     const card = document.createElement('div');
-    card.className = `schedule-day-card${!isOpen ? ' closed-day' : ''}`;
+    card.className = `day-card${!isOpen ? ' closed-day' : ''}`;
     card.id = `day-card-${day.key}`;
     card.innerHTML = `
       <div class="day-header">
-        <span class="day-name">${day.label}</span>
-        <div class="day-toggle">
-          <span style="font-size:0.75rem;color:var(--text-muted);">${isOpen ? 'Abierto' : 'Cerrado'}</span>
-          <label class="toggle-switch">
+        <h3>${day.label}</h3>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="status-badge ${isOpen ? 'open' : 'closed'}" id="badge-${day.key}">
+            ${isOpen ? 'Abierto' : 'Cerrado'}
+          </span>
+          <label class="status-switch">
             <input type="checkbox" id="toggle-${day.key}" ${isOpen ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
+            <span class="slider"></span>
           </label>
         </div>
       </div>
-      <div class="time-inputs" id="times-${day.key}" style="${!isOpen ? 'opacity:0.3;pointer-events:none;' : ''}">
-        <div class="time-input-group">
-          <label>Apertura</label>
-          <input type="time" id="from-${day.key}" value="${s.from || '12:00'}">
+
+      <div class="time-shift" id="shift-1-${day.key}" style="${!isOpen ? 'opacity:0.4; pointer-events:none;' : ''}">
+        <div class="shift-label"><i class="fas fa-sun"></i> Turno Comidas</div>
+        <div class="time-inputs-row">
+          <div class="time-input-group">
+            <input type="time" id="from-${day.key}" value="${s.from || '13:00'}" ${!isOpen ? 'disabled' : ''}>
+          </div>
+          <div class="time-separator"></div>
+          <div class="time-input-group">
+            <input type="time" id="to-${day.key}" value="${s.to || '16:30'}" ${!isOpen ? 'disabled' : ''}>
+          </div>
         </div>
-        <div class="time-input-group">
-          <label>Cierre</label>
-          <input type="time" id="to-${day.key}" value="${s.to || '23:30'}">
+      </div>
+
+      <div class="time-shift" id="shift-2-${day.key}" style="${!isOpen ? 'opacity:0.4; pointer-events:none;' : ''}">
+        <div class="shift-label"><i class="fas fa-moon"></i> Turno Cenas (Opcional)</div>
+        <div class="time-inputs-row">
+          <div class="time-input-group">
+            <input type="time" id="from2-${day.key}" value="${s.from2 || ''}" ${!isOpen ? 'disabled' : ''}>
+          </div>
+          <div class="time-separator"></div>
+          <div class="time-input-group">
+            <input type="time" id="to2-${day.key}" value="${s.to2 || ''}" ${!isOpen ? 'disabled' : ''}>
+          </div>
         </div>
-      </div>`;
+      </div>
+    `;
     grid.appendChild(card);
-    // Toggle open/closed
-    document.getElementById(`toggle-${day.key}`).onchange = e => {
-      const times = document.getElementById(`times-${day.key}`);
-      const label = e.target.closest('.day-toggle').querySelector('span');
-      times.style.opacity = e.target.checked ? '1' : '0.3';
-      times.style.pointerEvents = e.target.checked ? 'auto' : 'none';
-      label.textContent = e.target.checked ? 'Abierto' : 'Cerrado';
-      card.classList.toggle('closed-day', !e.target.checked);
+    // Evento de cambio de estado
+    card.querySelector(`#toggle-${day.key}`).onchange = (e) => {
+      const open = e.target.checked;
+      card.classList.toggle('closed-day', !open);
+      
+      const badge = document.getElementById(`badge-${day.key}`);
+      if (badge) {
+        badge.textContent = open ? 'Abierto' : 'Cerrado';
+        badge.className = `status-badge ${open ? 'open' : 'closed'}`;
+      }
+      
+      [1, 2].forEach(num => {
+        const shift = document.getElementById(`shift-${num}-${day.key}`);
+        if (shift) {
+          shift.style.opacity = open ? '1' : '0.4';
+          shift.style.pointerEvents = open ? 'all' : 'none';
+        }
+      });
+      
+      card.querySelectorAll('input[type="time"]').forEach(i => i.disabled = !open);
     };
   });
 }
@@ -390,17 +546,28 @@ document.getElementById('save-schedule-btn').onclick = async () => {
     const isOpen = document.getElementById(`toggle-${day.key}`)?.checked || false;
     schedule[day.key] = {
       open: isOpen,
-      from: document.getElementById(`from-${day.key}`)?.value || '12:00',
-      to:   document.getElementById(`to-${day.key}`)?.value   || '23:30',
+      from: document.getElementById(`from-${day.key}`)?.value || '',
+      to:   document.getElementById(`to-${day.key}`)?.value   || '',
+      from2: document.getElementById(`from2-${day.key}`)?.value || '',
+      to2:   document.getElementById(`to2-${day.key}`)?.value   || '',
     };
   });
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'weekly_schedule', value: JSON.stringify(schedule) });
-  toast('Horario semanal guardado ✓', 'success');
+  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'weekly_schedule', value: JSON.stringify(schedule) });
+  
+  if (error) {
+    console.error('Error guardando horario:', error);
+    toast('Error al guardar: ' + error.message, 'error');
+  } else {
+    toast('Horario semanal guardado ✓', 'success');
+    checkOnboarding();
+  }
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Horario Semanal';
 };
 
 async function loadSpecialDays() {
   const { data } = await db.from('special_days').select('*').eq('restaurant_id', RID).order('date');
+  const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
+  const reasons = rData && rData.value ? JSON.parse(rData.value) : {};
   const tbody = document.getElementById('special-days-body');
   tbody.innerHTML = '';
   if (!data || !data.length) {
@@ -412,8 +579,8 @@ async function loadSpecialDays() {
     tr.innerHTML = `
       <td><strong>${item.date}</strong></td>
       <td>${item.is_closed
-        ? '<span style="color:var(--error);font-weight:700;"><i class="fas fa-times-circle"></i> CERRADO</span>'
-        : '<span style="color:var(--success);font-weight:700;"><i class="fas fa-check-circle"></i> ABIERTO (excepción)</span>'}</td>
+        ? `<span style="color:var(--error);font-weight:700;"><i class="fas fa-times-circle"></i> CERRADO</span> <span style="font-size:0.8rem;color:var(--text-dim);">(${reasons[item.date]||'Excepcional'})</span>`
+        : `<span style="color:var(--success);font-weight:700;"><i class="fas fa-check-circle"></i> ABIERTO</span> <span style="font-size:0.8rem;color:var(--text-dim);">(${reasons[item.date]||'Excepción'})</span>`}</td>
       <td style="text-align:right;"><button class="action-btn delete-btn" onclick="deleteSpecialDay('${item.date}')"><i class="fas fa-trash"></i> Quitar</button></td>`;
     tbody.appendChild(tr);
   });
@@ -421,8 +588,15 @@ async function loadSpecialDays() {
 
 async function setSpecialDay(closed) {
   const d = document.getElementById('special-date-input').value;
+  const reason = document.getElementById('special-reason-input') ? document.getElementById('special-reason-input').value : '';
   if (!d) { toast('Selecciona una fecha','error'); return; }
   await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed });
+  
+  const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
+  const reasons = rData && rData.value ? JSON.parse(rData.value) : {};
+  reasons[d] = reason;
+  await db.from('settings').upsert({ restaurant_id: RID, key: 'special_reasons', value: JSON.stringify(reasons) });
+
   loadSpecialDays();
   toast(`Día ${d} marcado como ${closed?'CERRADO':'ABIERTO (excepción)'}`, closed?'error':'success');
 }
@@ -481,6 +655,30 @@ document.getElementById('add-category-btn').onclick = () => {
   renderCategoriesList(cats);
 };
 
+if (document.getElementById('ai-generate-menu-btn')) {
+  document.getElementById('ai-generate-menu-btn').onclick = async () => {
+    const style = prompt("¿Qué tipo de comida sirves? (Ej: Italiana, Tradicional, Fusión, Burgers...)");
+    if (!style) return;
+    const btn = document.getElementById('ai-generate-menu-btn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+    
+    setTimeout(async () => {
+      const list = document.getElementById('categories-list');
+      const cats = list._cats || [];
+      const newCats = [
+        { id: `entrantes-${Date.now()}`, label: `Entrantes estilo ${style}`, page: "entrantes.html", img: "images/cat-raciones.png" },
+        { id: `principales-${Date.now()}`, label: `Principales de ${style}`, page: "principales.html", img: "images/cat-hamburguesas.png" },
+        { id: `postres-${Date.now()}`, label: `Postres Artesanos`, page: "postres.html", img: "images/cat-postres.png" },
+        { id: `bebidas-${Date.now()}`, label: "Bodega y Bebidas", page: "bebidas.html", img: "images/cat-bebidas.png" }
+      ];
+      cats.push(...newCats);
+      renderCategoriesList(cats);
+      toast('Secciones generadas mágicamente con IA ✨', 'success');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Autocompletar Carta Base con IA';
+    }, 1500);
+  };
+}
+
 async function saveCategories() {
   const list = document.getElementById('categories-list');
   const cats = list._cats;
@@ -510,15 +708,39 @@ async function loadConfigTab() {
     const s = data.find(x => x.key === key);
     if (s) document.getElementById(elId).value = s.value;
   });
+  const autoConf = data.find(x => x.key === 'auto_confirm');
+  if (autoConf && document.getElementById('auto-confirm-toggle')) {
+    document.getElementById('auto-confirm-toggle').checked = autoConf.value === 'true';
+  }
+  const limitPax = data.find(x => x.key === 'limit_pax');
+  if (limitPax && document.getElementById('cfg-limit-pax')) {
+    document.getElementById('cfg-limit-pax').value = limitPax.value;
+  }
+}
+
+if(document.getElementById('save-limits-btn')) {
+  document.getElementById('save-limits-btn').onclick = async () => {
+    const btn = document.getElementById('save-limits-btn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    const val = document.getElementById('cfg-limit-pax').value;
+    await db.from('settings').upsert({ restaurant_id: RID, key: 'limit_pax', value: val });
+    toast('Límite guardado ✓','success');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Límite';
+  };
 }
 
 document.getElementById('save-ejs-btn').onclick = async () => {
+  const btn = document.getElementById('save-ejs-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
   const map = { ejs_admin_email:'ejs-admin-email', ejs_public_key:'ejs-public-key', ejs_service_id:'ejs-service-id', ejs_template_admin:'ejs-template-admin', ejs_template_client:'ejs-template-client' };
   for (const [key, elId] of Object.entries(map)) {
     const value = document.getElementById(elId).value;
     await db.from('settings').upsert({ restaurant_id: RID, key, value });
   }
-  toast('Configuración de email guardada ✓','success');
+  const autoConf = document.getElementById('auto-confirm-toggle').checked;
+  await db.from('settings').upsert({ restaurant_id: RID, key: 'auto_confirm', value: autoConf ? 'true' : 'false' });
+  toast('Preferencias guardadas ✓','success');
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Preferencias';
 };
 
 document.getElementById('init-db-btn').onclick = () => {
@@ -559,13 +781,31 @@ CREATE INDEX IF NOT EXISTS idx_reservations_date ON reservations(restaurant_id, 
 };
 
 // ── QR ────────────────────────────────────────────────────
-function loadQR() {
-  const url  = APP_CONFIG.siteUrl || window.location.origin;
+async function loadQR() {
+  localStorage.setItem('onboarding_qr', 'true');
+  if (typeof checkOnboarding === 'function') checkOnboarding();
+  
+  const target = document.getElementById('qr-target-select') ? document.getElementById('qr-target-select').value : '';
+  const color = document.getElementById('qr-color-select') ? document.getElementById('qr-color-select').value : '#000000';
+  
+  let baseUrl = APP_CONFIG.siteUrl || window.location.origin;
+  if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+  const url = target ? `${baseUrl}/${target}?ref=qr` : `${baseUrl}?ref=qr`;
+  
   document.getElementById('qr-url-display').textContent = url;
   document.getElementById('qr-label').textContent = url;
   const canvas = document.getElementById('qr-canvas');
-  QRCode.toCanvas(canvas, url, { width: 240, margin: 2, color: { dark:'#000000', light:'#ffffff' } });
+  QRCode.toCanvas(canvas, url, { width: 240, margin: 2, color: { dark: color, light:'#ffffff' } });
+
+  try {
+    const { data: qData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'qr_scans').single();
+    const scans = qData?.value || 0;
+    if(document.getElementById('qr-scan-count')) document.getElementById('qr-scan-count').innerHTML = `<i class="fas fa-chart-line"></i> Escaneos Totales: ${scans}`;
+  } catch(e) {}
 }
+
+if(document.getElementById('qr-target-select')) document.getElementById('qr-target-select').onchange = loadQR;
+if(document.getElementById('qr-color-select')) document.getElementById('qr-color-select').oninput = loadQR;
 
 document.getElementById('download-qr-btn').onclick = () => {
   const canvas = document.getElementById('qr-canvas');
@@ -586,4 +826,368 @@ document.getElementById('print-qr-btn').onclick = () => {
     <p style="font-size:12px;color:#aaa;margin-top:16px;">${APP_CONFIG.siteUrl}</p>
   </body></html>`);
   win.print();
+};
+
+// ── METRICAS ──────────────────────────────────────────────
+let chartRes, chartZones, chartViews;
+async function loadMetrics() {
+  const btn = document.getElementById('refresh-metrics-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+  
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  const dateStr = d.toISOString().split('T')[0];
+  
+  const [resData, viewsData] = await Promise.all([
+    db.from('reservations').select('*').eq('restaurant_id', RID).gte('date', dateStr),
+    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'stats_views').single()
+  ]);
+  
+  const res = resData.data || [];
+  const views = viewsData.data?.value ? JSON.parse(viewsData.data.value) : {};
+  
+  document.getElementById('metric-total-res').textContent = res.length;
+  document.getElementById('metric-total-pax').textContent = res.reduce((s,r) => s + parseInt(r.people||0), 0);
+  
+  const hours = {};
+  res.forEach(r => { if(r.status==='confirmed') hours[r.time] = (hours[r.time]||0) + 1; });
+  const peak = Object.keys(hours).sort((a,b) => hours[b] - hours[a])[0];
+  document.getElementById('metric-peak-hour').textContent = peak || '-';
+  
+  const last7Days = [];
+  for(let i=6; i>=0; i--) {
+    let dt = new Date(); dt.setDate(dt.getDate() - i);
+    last7Days.push(dt.toISOString().split('T')[0]);
+  }
+  
+  const resByDay = last7Days.map(date => res.filter(r => r.date === date).length);
+  
+  if (chartRes) chartRes.destroy();
+  if (window.Chart) {
+    chartRes = new Chart(document.getElementById('chart-reservations'), {
+      type: 'bar',
+      data: {
+        labels: last7Days.map(x => x.substring(5).split('-').reverse().join('/')),
+        datasets: [{ label: 'Reservas', data: resByDay, backgroundColor: '#C5A866', borderRadius: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+    
+    const zoneCounts = {};
+    APP_CONFIG.zones.forEach(z => zoneCounts[z.id] = 0);
+    res.forEach(r => { if(zoneCounts[r.zone] !== undefined) zoneCounts[r.zone]++; });
+    
+    if (chartZones) chartZones.destroy();
+    chartZones = new Chart(document.getElementById('chart-zones'), {
+      type: 'doughnut',
+      data: {
+        labels: APP_CONFIG.zones.map(z => z.title),
+        datasets: [{ data: APP_CONFIG.zones.map(z => zoneCounts[z.id]), backgroundColor: ['#C5A866', '#1A1A1A', '#e5e7eb'] }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    if (chartViews) chartViews.destroy();
+    const viewLabels = Object.keys(views).filter(k => k !== 'index.html').sort((a,b) => views[b] - views[a]).slice(0,5);
+    const viewData = viewLabels.map(k => views[k]);
+    chartViews = new Chart(document.getElementById('chart-views'), {
+      type: 'pie',
+      data: {
+        labels: viewLabels.map(l => l.replace('.html','').toUpperCase()),
+        datasets: [{ data: viewData, backgroundColor: ['#C5A866', '#1A1A1A', '#e5e7eb', '#888888', '#333333'] }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+  btn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar Datos';
+}
+document.getElementById('refresh-metrics-btn').onclick = loadMetrics;
+
+// ── ONBOARDING SAAS ─────────────────────────────────────────
+async function checkOnboarding() {
+  try {
+    const { data: prods } = await db.from('menu_items').select('id').eq('restaurant_id', RID).limit(1);
+    const { data: sched } = await db.from('settings').select('id').eq('restaurant_id', RID).eq('key', 'weekly_schedule').single();
+    
+    const hasPlato = prods && prods.length > 0;
+    const hasHorario = !!sched;
+    const hasQR = localStorage.getItem('onboarding_qr') === 'true';
+    
+    document.getElementById('chk-onb-plato').checked = hasPlato;
+    document.getElementById('chk-onb-horario').checked = hasHorario;
+    document.getElementById('chk-onb-qr').checked = hasQR;
+    
+    let completed = (hasPlato ? 1 : 0) + (hasHorario ? 1 : 0) + (hasQR ? 1 : 0);
+    document.getElementById('onboarding-progress').textContent = `${completed}/3 completados`;
+    
+    const widget = document.getElementById('onboarding-widget');
+    if (completed < 3) {
+      widget.style.display = 'block';
+    } else {
+      widget.style.display = 'none';
+    }
+  } catch(e) {
+    console.error('Error checking onboarding:', e);
+  }
+}
+
+// ── PLANO DE MESAS ─────────────────────────────────────────
+let tablesData = [];
+let zonesData = [];
+let draggingTable = null;
+let dragOffset = { x: 0, y: 0 };
+
+async function loadTablesMap() {
+  const [tablesRes, zonesRes] = await Promise.all([
+    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').single(),
+    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'zones_config').single()
+  ]);
+  
+  tablesData = tablesRes.data?.value ? JSON.parse(tablesRes.data.value) : [];
+  zonesData = zonesRes.data?.value ? JSON.parse(zonesRes.data.value) : APP_CONFIG.zones;
+  
+  renderZonesList();
+  renderTablesList();
+  renderTablesMap();
+}
+
+function renderZonesList() {
+  const list = document.getElementById('zones-list');
+  list.innerHTML = '';
+  if (zonesData.length === 0) {
+    list.innerHTML = `
+      <div style="padding:20px; text-align:center; border:2px dashed var(--border); border-radius:10px; color:var(--text-dim);">
+        <i class="fas fa-map-marked-alt" style="font-size:1.5rem; margin-bottom:8px; color:var(--text-muted);"></i>
+        <p style="font-size:0.9rem;">Aún no has añadido zonas. Usa el formulario de arriba.</p>
+      </div>`;
+    return;
+  }
+
+  // Badge de resumen total
+  const totalCap = zonesData.reduce((s, z) => s + (parseInt(z.capacity)||0), 0);
+  const summary = document.createElement('div');
+  summary.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--gold-dim); border:1px solid var(--border-gold); border-radius:8px; margin-bottom:4px;';
+  summary.innerHTML = `<i class="fas fa-chart-pie" style="color:var(--gold);"></i> <span style="font-size:0.9rem; color:var(--text);"><strong>${zonesData.length} zonas</strong> · Aforo total del local: <strong>${totalCap} personas</strong></span>`;
+  list.appendChild(summary);
+
+  zonesData.forEach((z, idx) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:center; padding:14px 16px; background:var(--surface); border-radius:10px; border:1px solid var(--border); box-shadow:var(--shadow-sm);';
+    div.innerHTML = `
+      <div>
+        <strong style="display:block; font-size:1rem; color:var(--text);">${z.title}</strong>
+        <span style="font-size:0.8rem; color:var(--text-dim);">Los clientes podrán elegir esta zona al reservar</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label style="font-size:0.8rem; color:var(--text-dim); white-space:nowrap;"><i class="fas fa-users" style="color:var(--gold);"></i> Aforo máx.</label>
+        <input type="number" value="${z.capacity}" min="1" max="500"
+          onchange="updateZoneCapacity(${idx}, this.value)"
+          style="width:70px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:0.9rem; font-weight:600; text-align:center; background:var(--surface-2); color:var(--text); outline:none;"
+          onfocus="this.style.borderColor='var(--gold)'"
+          onblur="this.style.borderColor='var(--border)'">
+        <span style="font-size:0.8rem; color:var(--text-dim);">pax</span>
+      </div>
+      <button onclick="removeZone(${idx})"
+        style="background:var(--error-bg); border:none; color:var(--error); padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:6px;"
+        onmouseenter="this.style.background='var(--error)';this.style.color='#fff'"
+        onmouseleave="this.style.background='var(--error-bg)';this.style.color='var(--error)'">
+        <i class="fas fa-trash"></i> Eliminar
+      </button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+document.getElementById('add-zone-btn').onclick = () => {
+  const titleEl = document.getElementById('new-zone-name');
+  const capEl   = document.getElementById('new-zone-capacity');
+  const title    = titleEl.value.trim();
+  const capacity = parseInt(capEl.value) || 20;
+
+  if (!title) {
+    titleEl.style.borderColor = 'var(--error)';
+    setTimeout(() => titleEl.style.borderColor = '', 2000);
+    return;
+  }
+
+  const id = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_');
+  // Evitar duplicados de ID
+  const finalId = zonesData.find(z => z.id === id) ? id + '_' + Date.now() : id;
+  zonesData.push({ id: finalId, title, capacity });
+  renderZonesList();
+  // Limpiar formulario
+  titleEl.value = '';
+  capEl.value = '';
+};
+
+window.removeZone = (idx) => {
+  if(confirm(`¿Eliminar la zona "${zonesData[idx].title}"? Las reservas existentes de esta zona no se borrarán pero no podrán usarla.`)) {
+    zonesData.splice(idx, 1);
+    renderZonesList();
+  }
+};
+
+window.updateZoneCapacity = (idx, val) => {
+  zonesData[idx].capacity = parseInt(val) || 0;
+};
+
+function renderTablesList() {
+  const list = document.getElementById('tables-list');
+  list.innerHTML = '';
+  if (tablesData.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-dim); font-size:0.9rem; text-align:center; padding:20px;">No hay mesas creadas.</p>';
+    return;
+  }
+  tablesData.forEach((t, idx) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--surface); border-radius:8px; border:1px solid var(--border); box-shadow:var(--shadow-sm); transition:transform 0.2s; cursor:pointer;';
+    div.onmouseenter = () => div.style.borderColor = 'var(--gold)';
+    div.onmouseleave = () => div.style.borderColor = 'var(--border)';
+    div.innerHTML = `
+      <div>
+        <strong style="display:block; font-size:0.95rem; color:var(--text);">${t.name}</strong>
+        <span style="font-size:0.8rem; color:var(--text-dim);"><i class="fas fa-users" style="color:var(--gold);"></i> Pax: ${t.capacity}</span>
+      </div>
+      <button onclick="removeTable(${idx})" style="background:var(--error-bg); border:none; color:var(--error); padding:8px; border-radius:6px; cursor:pointer; transition:background 0.2s;" onmouseenter="this.style.background='var(--error)'; this.style.color='#fff';" onmouseleave="this.style.background='var(--error-bg)'; this.style.color='var(--error)';"><i class="fas fa-trash"></i></button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function renderTablesMap() {
+  const mapArea = document.getElementById('tables-map-area');
+  mapArea.innerHTML = '';
+  
+  if (tablesData.length === 0) {
+    mapArea.innerHTML = '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; color:var(--text-dim);"><i class="fas fa-chair" style="font-size:2rem; margin-bottom:10px; opacity:0.5;"></i><p>Usa el botón "Nueva Mesa" para empezar a dibujar</p></div>';
+  }
+
+  tablesData.forEach((t, idx) => {
+    const el = document.createElement('div');
+    const width = t.shape === 'round' ? 60 : 70;
+    const height = t.shape === 'round' ? 60 : 70; // made them squares or circles for better aesthetics
+    el.style.cssText = `
+      position: absolute; 
+      left: ${t.x || 10}%; 
+      top: ${t.y || 10}%; 
+      width: ${width}px; 
+      height: ${height}px; 
+      border-radius: ${t.shape === 'round' ? '50%' : '8px'}; 
+      background: var(--surface); 
+      border: 2px solid var(--text); 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      cursor: grab; 
+      box-shadow: var(--shadow);
+      user-select: none;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    `;
+    
+    // Add internal grid or seats visual? Let's just keep it simple and elegant.
+    el.innerHTML = `<span style="font-weight:700; font-size:0.9rem; color:var(--text);">${t.name}</span><span style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${t.capacity} pax</span>`;
+    
+    // Drag Events
+    el.onmousedown = e => {
+      draggingTable = idx;
+      const areaRect = mapArea.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      dragOffset.x = e.clientX - elRect.left;
+      dragOffset.y = e.clientY - elRect.top;
+      el.style.cursor = 'grabbing';
+      el.style.zIndex = 100;
+      el.style.boxShadow = 'var(--shadow-lg)';
+      el.style.borderColor = 'var(--gold)';
+    };
+    
+    mapArea.appendChild(el);
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (draggingTable !== null) {
+    const mapArea = document.getElementById('tables-map-area');
+    const areaRect = mapArea.getBoundingClientRect();
+    
+    // Calculate new position in pixels
+    let newX = e.clientX - areaRect.left - dragOffset.x;
+    let newY = e.clientY - areaRect.top - dragOffset.y;
+    
+    // Apply bounds
+    const width = tablesData[draggingTable].shape === 'round' ? 60 : 70;
+    const height = tablesData[draggingTable].shape === 'round' ? 60 : 70;
+    newX = Math.max(0, Math.min(newX, areaRect.width - width));
+    newY = Math.max(0, Math.min(newY, areaRect.height - height));
+    
+    // Save as percentages for responsive resizing
+    tablesData[draggingTable].x = (newX / areaRect.width) * 100;
+    tablesData[draggingTable].y = (newY / areaRect.height) * 100;
+    
+    // Update visually instantly
+    const el = mapArea.children[tablesData.length === 0 ? draggingTable : (mapArea.children[0].tagName === 'DIV' && mapArea.children.length === tablesData.length + 1) ? draggingTable + 1 : draggingTable]; // handle empty state div
+    if(el) {
+      el.style.left = tablesData[draggingTable].x + '%';
+      el.style.top = tablesData[draggingTable].y + '%';
+    } else {
+      // safe fallback if DOM mismatch
+      const allTables = Array.from(mapArea.children).filter(c => c.style.cursor.includes('grab'));
+      if(allTables[draggingTable]) {
+         allTables[draggingTable].style.left = tablesData[draggingTable].x + '%';
+         allTables[draggingTable].style.top = tablesData[draggingTable].y + '%';
+      }
+    }
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (draggingTable !== null) {
+    renderTablesMap(); // re-render cleanly
+    draggingTable = null;
+  }
+});
+
+document.getElementById('add-table-btn').onclick = () => {
+  if (zonesData.length === 0) { alert('Añade primero una Sala/Zona arriba'); return; }
+  const name = prompt('Nombre de la mesa (Ej: Mesa 1, Terraza A, VIP...):');
+  if (!name) return;
+  const capacity = prompt('¿Cuántas personas caben en esta mesa?:', '4');
+  const shapeStr = prompt('¿Forma de la mesa? (Escribe "cuadrada" o "redonda"):', 'cuadrada');
+  const shape = shapeStr && shapeStr.toLowerCase().includes('redond') ? 'round' : 'square';
+  
+  let zoneNames = zonesData.map(z => z.title).join(', ');
+  const zoneTitle = prompt(`¿En qué zona está? (${zoneNames}):`, zonesData[0].title);
+  const matchedZone = zonesData.find(z => z.title.toLowerCase() === zoneTitle.toLowerCase()) || zonesData[0];
+  
+  // Default to center
+  tablesData.push({ name, capacity: parseInt(capacity)||4, shape, zone: matchedZone.id, x: 45, y: 45 });
+  renderTablesList();
+  renderTablesMap();
+};
+
+window.removeTable = (idx) => {
+  if(confirm('¿Eliminar esta mesa definitivamente del plano?')) {
+    tablesData.splice(idx, 1);
+    renderTablesList();
+    renderTablesMap();
+  }
+};
+
+document.getElementById('save-tables-btn').onclick = async () => {
+  const btn = document.getElementById('save-tables-btn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  
+  const results = await Promise.all([
+    db.from('settings').upsert({ restaurant_id: RID, key: 'tables_map', value: JSON.stringify(tablesData) }),
+    db.from('settings').upsert({ restaurant_id: RID, key: 'zones_config', value: JSON.stringify(zonesData) })
+  ]);
+  
+  const errors = results.filter(r => r.error);
+  if (errors.length > 0) {
+    console.error('Error guardando plano:', errors[0].error);
+    toast('Error al guardar: ' + errors[0].error.message, 'error');
+  } else {
+    toast('Configuración de Zonas y Mesas guardada', 'success');
+  }
+  btn.innerHTML = '<i class="fas fa-save"></i> Guardar Plano';
 };
