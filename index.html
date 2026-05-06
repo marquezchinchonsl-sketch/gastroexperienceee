@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -17,7 +17,7 @@
 <body>
 
   <!-- Botón reservar fijo -->
-  <a href="reservas.html" class="reservation-btn" id="reservation-btn" aria-label="Reservar mesa">
+  <a href="/reservas" class="reservation-btn" id="reservation-btn" aria-label="Reservar mesa">
     <i class="fas fa-calendar-check"></i>
     <span>Reservar</span>
     <i class="fas fa-arrow-right"></i>
@@ -112,9 +112,74 @@
     });
     if (!strip.children.length) strip.style.display = 'none';
 
-    // ── Cargar categorías (BD o config) ─────────────────────
     const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
+    const RID = APP_CONFIG.restaurantId;
 
+    // ── Cargar configuración dinámica desde BD ──────────────
+    async function loadDynamicConfig() {
+      try {
+        const { data } = await db.from('settings').select('*').eq('restaurant_id', APP_CONFIG.restaurantId);
+        if (!data) return;
+
+        const get = k => data.find(x => x.key === k)?.value;
+
+        const bizName = get('biz_name');
+        if (bizName) {
+          APP_CONFIG.barName = bizName;
+          document.title = bizName + ' · Carta';
+          document.getElementById('footer-brand').textContent = bizName;
+          document.getElementById('footer-copy').textContent = `© ${new Date().getFullYear()} ${bizName} · Todos los derechos reservados`;
+          document.getElementById('hero-logo').alt = bizName;
+        }
+
+        const bizTagline = get('biz_tagline');
+        if (bizTagline) {
+          APP_CONFIG.barTagline = bizTagline;
+          document.getElementById('hero-tagline').textContent = bizTagline;
+        }
+
+        const bizAddr = get('biz_address');
+        const bizCity = get('biz_city');
+        if (bizAddr || bizCity) {
+          const addr = [bizAddr || APP_CONFIG.barAddress, bizCity || APP_CONFIG.barCity].filter(Boolean).join(' · ');
+          document.getElementById('hero-address').textContent = addr;
+        }
+
+        const bizPhone = get('biz_phone');
+        if (bizPhone) {
+          const contacts = document.getElementById('hero-contacts');
+          contacts.innerHTML = ''; // Limpiar anteriores
+          [bizPhone].filter(Boolean).forEach(p => {
+            const a = document.createElement('a');
+            a.href = `tel:${p.replace(/\s/g,'')}`;
+            a.innerHTML = `<i class="fas fa-phone" aria-hidden="true"></i> ${p}`;
+            contacts.appendChild(a);
+          });
+        }
+
+        const bizInsta = get('biz_instagram');
+        if (bizInsta) {
+          APP_CONFIG.instagram = bizInsta;
+          // Actualizar strip social si existe
+          const strip = document.getElementById('social-strip');
+          const instaBtn = Array.from(strip.querySelectorAll('a')).find(a => a.getAttribute('aria-label') === 'Instagram');
+          if (instaBtn) instaBtn.href = bizInsta;
+          else {
+            const a = document.createElement('a');
+            a.href = bizInsta; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.setAttribute('aria-label', 'Instagram');
+            a.innerHTML = `<i class="fab fa-instagram" aria-hidden="true"></i>`;
+            strip.appendChild(a);
+            strip.style.display = 'flex';
+          }
+        }
+        console.log('%c✓ Configuración dinámica cargada desde Supabase', 'color: #059669; font-weight: bold;');
+      } catch (e) {
+        console.warn('Error cargando config dinámica:', e);
+      }
+    }
+    loadDynamicConfig();
+
+    // ── Cargar categorías (BD o config) ─────────────────────
     async function loadCategories() {
       let cats = APP_CONFIG.menuCategories;
       try {
@@ -135,7 +200,7 @@
       }
       cats.forEach((cat, i) => {
         const a = document.createElement('a');
-        a.href = cat.page || `${cat.id}.html`;
+        a.href = cat.page || `${cat.id}`;
         a.className = 'category-card';
         a.style.setProperty('--i', i);
         a.setAttribute('aria-label', `Ver ${cat.label}`);
@@ -180,6 +245,16 @@
     // ── PWA ──────────────────────────────────────────────────
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    // ── Tracking QR Scans ───────────────────────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('ref') === 'qr') {
+      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'qr_scans').single()
+        .then(({ data }) => {
+          let count = parseInt(data?.value || 0) + 1;
+          db.from('settings').upsert({ restaurant_id: APP_CONFIG.restaurantId, key: 'qr_scans', value: count.toString() }).then();
+        });
     }
 
     loadCategories();

@@ -1,5 +1,5 @@
 const CACHE = 'gastro-v3';
-const PRECACHE = ['/', '/index.html', '/index.css', '/menu-items.css', '/config.js', '/images/logo.png'];
+const PRECACHE = ['/', '/index.css', '/menu-items.css', '/config.js', '/images/logo.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
