@@ -144,10 +144,23 @@ function renderTable(res) {
       <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end;">
         ${confirmed
           ? '<button class="action-btn notified" disabled><i class="fas fa-check"></i> Confirmado</button>'
-          : `<button class="action-btn confirm-res-btn" onclick="confirmReservation('${r.id}','${r.email}','${r.name}','${r.date}','${r.time}')"><i class="fas fa-check"></i> Confirmar</button>`}
-        <button class="action-btn delete-btn" onclick="deleteReservation('${r.id}')"><i class="fas fa-trash"></i></button>
+          : `<button class="action-btn confirm-res-btn" data-id="${r.id}" data-email="${r.email}" data-name="${r.name}" data-date="${r.date}" data-time="${r.time}"><i class="fas fa-check"></i> Confirmar</button>`}
+        <button class="action-btn delete-btn" data-id="${r.id}"><i class="fas fa-trash"></i></button>
       </td>`;
     tbody.appendChild(tr);
+  });
+
+  // Delegación de eventos para botones
+  tbody.querySelectorAll('.confirm-res-btn').forEach(btn => {
+    btn.onclick = () => {
+      const { id, email, name, date, time } = btn.dataset;
+      confirmReservation(id, email, name, date, time);
+    };
+  });
+  tbody.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.onclick = () => {
+      deleteReservation(btn.dataset.id);
+    };
   });
 }
 
@@ -651,7 +664,7 @@ window.removeCategory = idx => {
 document.getElementById('add-category-btn').onclick = () => {
   const list = document.getElementById('categories-list');
   const cats = list._cats || [];
-  cats.push({ id: `nueva-seccion-${Date.now()}`, label: 'Nueva Sección', page: 'menu.html', img: '' });
+  cats.push({ id: `nueva-seccion-${Date.now()}`, label: 'Nueva Sección', page: 'menu', img: '' });
   renderCategoriesList(cats);
 };
 
@@ -666,10 +679,10 @@ if (document.getElementById('ai-generate-menu-btn')) {
       const list = document.getElementById('categories-list');
       const cats = list._cats || [];
       const newCats = [
-        { id: `entrantes-${Date.now()}`, label: `Entrantes estilo ${style}`, page: "entrantes.html", img: "images/cat-raciones.png" },
-        { id: `principales-${Date.now()}`, label: `Principales de ${style}`, page: "principales.html", img: "images/cat-hamburguesas.png" },
-        { id: `postres-${Date.now()}`, label: `Postres Artesanos`, page: "postres.html", img: "images/cat-postres.png" },
-        { id: `bebidas-${Date.now()}`, label: "Bodega y Bebidas", page: "bebidas.html", img: "images/cat-bebidas.png" }
+        { id: `entrantes-${Date.now()}`, label: `Entrantes estilo ${style}`, page: "entrantes", img: "images/cat-raciones.png" },
+        { id: `principales-${Date.now()}`, label: `Principales de ${style}`, page: "principales", img: "images/cat-hamburguesas.png" },
+        { id: `postres-${Date.now()}`, label: `Postres Artesanos`, page: "postres", img: "images/cat-postres.png" },
+        { id: `bebidas-${Date.now()}`, label: "Bodega y Bebidas", page: "bebidas", img: "images/cat-bebidas.png" }
       ];
       cats.push(...newCats);
       renderCategoriesList(cats);

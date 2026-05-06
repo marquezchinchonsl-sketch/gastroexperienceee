@@ -37,10 +37,10 @@ const APP_CONFIG = {
 
   // ── 7. CATEGORÍAS DE LA CARTA ──────────────────────────
   menuCategories: [
-    { id: "raciones",     label: "Raciones",     page: "raciones.html",     img: "images/cat-raciones.png"     },
-    { id: "hamburguesas", label: "Hamburguesas",  page: "hamburguesas.html",  img: "images/cat-hamburguesas.png" },
-    { id: "bebidas",      label: "Bebidas",       page: "bebidas.html",       img: "images/cat-bebidas.png"      },
-    { id: "postres",      label: "Postres",        page: "postres.html",       img: "images/cat-postres.png"      },
+    { id: "raciones",     label: "Raciones",     page: "raciones",     img: "images/cat-raciones.png"     },
+    { id: "hamburguesas", label: "Hamburguesas",  page: "hamburguesas",  img: "images/cat-hamburguesas.png" },
+    { id: "bebidas",      label: "Bebidas",       page: "bebidas",       img: "images/cat-bebidas.png"      },
+    { id: "postres",      label: "Postres",        page: "postres",       img: "images/cat-postres.png"      },
   ],
 
   // ── 8. CONTRASEÑA DEL PANEL DE ADMIN ──────────────────
@@ -70,7 +70,9 @@ if (typeof window !== 'undefined') {
     }
 
     // 2. Tracking de Vistas de Categorías
-    const path = window.location.pathname.split('/').pop() || 'index.html';
+    let path = window.location.pathname.split('/').pop() || 'index';
+    if (path.endsWith('.html')) path = path.replace('.html', '');
+    if (path === 'index' || path === '') path = 'index'; // Normalizar inicio
     if (!window.location.pathname.includes('admin') && typeof supabase !== 'undefined') {
       const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
       db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'stats_views').single()

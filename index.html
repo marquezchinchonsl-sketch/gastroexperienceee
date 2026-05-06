@@ -17,7 +17,7 @@
 <body>
 
   <!-- Botón reservar fijo -->
-  <a href="reservas.html" class="reservation-btn" id="reservation-btn" aria-label="Reservar mesa">
+  <a href="/reservas" class="reservation-btn" id="reservation-btn" aria-label="Reservar mesa">
     <i class="fas fa-calendar-check"></i>
     <span>Reservar</span>
     <i class="fas fa-arrow-right"></i>
@@ -135,7 +135,7 @@
       }
       cats.forEach((cat, i) => {
         const a = document.createElement('a');
-        a.href = cat.page || `${cat.id}.html`;
+        a.href = cat.page || `${cat.id}`;
         a.className = 'category-card';
         a.style.setProperty('--i', i);
         a.setAttribute('aria-label', `Ver ${cat.label}`);

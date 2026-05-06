@@ -324,11 +324,92 @@ td { padding: 16px 24px; vertical-align: middle; color: var(--text); }
   input:checked + .slider:before { transform: translateX(22px); }
 
 /* RESPONSIVE */
+@media(max-width:1024px){
+  .sidebar { width: 220px; }
+  .dashboard-container { padding: 32px; }
+  .topbar { padding: 20px 32px; }
+}
+
 @media(max-width:992px){
-  .app-layout { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 16px; flex-direction: row; justify-content: space-between; align-items: center; }
+  .app-layout { flex-direction: column; height: 100vh; overflow: hidden; }
+  .sidebar { 
+    width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); 
+    padding: 12px 20px; flex-direction: row; justify-content: space-between; align-items: center; 
+    flex-shrink: 0; position: relative;
+  }
   .sidebar-header { padding: 0; }
-  .admin-nav { display: none; /* In mobile, maybe a hamburger menu */ }
-  .topbar { padding: 16px 24px; }
-  .dashboard-container { padding: 24px; }
+  .sidebar-header h1 { font-size: 1.3rem; }
+  .sidebar-header p { display: none; }
+  .sidebar-footer { display: none; }
+  
+  /* Navegación Móvil Inferior (Bottom Nav) */
+  .admin-nav { 
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 64px; 
+    background: var(--surface); border-top: 1px solid var(--border); 
+    padding: 0 10px; flex-direction: row; justify-content: space-around; 
+    align-items: center; z-index: 2000; box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+    overflow: visible; gap: 0;
+  }
+  .nav-tab { 
+    flex-direction: column; padding: 8px 4px; gap: 4px; font-size: 0.65rem; 
+    text-align: center; border-radius: 8px; flex: 1; align-items: center;
+    color: var(--text-muted);
+  }
+  .nav-tab i { font-size: 1.2rem; width: auto; margin: 0; }
+  .nav-tab.active { background: transparent; color: var(--gold); }
+  
+  /* Ocultar pestañas menos importantes en nav inferior móvil para evitar saturación */
+  .nav-tab[data-tab="tables"], .nav-tab[data-tab="categories"], .nav-tab[data-tab="qr"] { display: none; }
+  /* En su lugar, podríamos tener un botón "Más" */
+
+  .main-wrapper { height: calc(100vh - 60px - 64px); } /* Menos header y bottom nav */
+  .topbar { padding: 14px 20px; box-shadow: var(--shadow-sm); }
+  .topbar-title { font-size: 1.1rem; }
+  .user-info span { display: none; }
+  .dashboard-container { padding: 20px; padding-bottom: 100px; }
+
+  /* Grids y Tablas */
+  .stats-grid { grid-template-columns: 1fr; gap: 16px; }
+  .section-card { padding: 20px; }
+  .section-card h2 { font-size: 1.1rem; margin-bottom: 16px; }
+  
+  .table-container { 
+    margin: 0 -20px; width: calc(100% + 40px); border-radius: 0; border-left: none; border-right: none; 
+    -webkit-overflow-scrolling: touch;
+  }
+  table { min-width: 800px; } /* Forzar scroll horizontal para claridad */
+
+  /* Forms en móvil */
+  .modal-content { padding: 24px 20px; border-radius: 16px; }
+  .modal-content form > div { grid-template-columns: 1fr !important; gap: 20px !important; }
+}
+
+@media(max-width:600px) {
+  .dashboard-controls { padding: 12px; flex-direction: column; align-items: stretch; }
+  .dashboard-controls > div { width: 100%; justify-content: space-between; }
+  .dashboard-controls input, .dashboard-controls select { width: 100%; }
+  
+  .stat-card p { font-size: 2rem; }
+  
+  /* Ajustar cuadrícula de horario */
+  .schedule-grid { grid-template-columns: 1fr; }
+  .day-card { padding: 16px; }
+  
+  /* Ajustar botones de acción en tabla */
+  td { padding: 12px 16px; }
+  
+  /* QR Section */
+  #qr-wrapper { padding: 20px; }
+  #qr-canvas { max-width: 100%; height: auto !important; }
+}
+
+/* ── Mejoras de Claridad Desktop ───────────────────── */
+.main-wrapper::-webkit-scrollbar { width: 8px; }
+.main-wrapper::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); }
+.main-wrapper::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.1); }
+
+.sidebar-header h1 { 
+  background: linear-gradient(to right, var(--text), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

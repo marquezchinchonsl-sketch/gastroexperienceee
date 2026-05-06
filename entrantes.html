@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -14,7 +14,7 @@
 <body>
 
   <header class="menu-header">
-    <a href="index.html" class="nav-back" aria-label="Volver a la carta">
+    <a href="/" class="nav-back" aria-label="Volver a la carta">
       <i class="fas fa-arrow-left" aria-hidden="true"></i> Carta
     </a>
     <div class="header-logo">
@@ -49,17 +49,17 @@
   <script src="config.js"></script>
   <script src="demo-data.js"></script>
   <script>
-    // ══ CONFIGURACIÓN DE ESTA PÁGINA ══════════════════════════
+    // -- CONFIGURACI�N DE ESTA P�GINA --------------------------
     const PAGE_CATEGORY = 'entrantes';
     const PAGE_TITLE    = 'Entrantes';
     const PAGE_SUBTITLE = '';
     const PAGE_ICON     = 'fa-utensils';
-    // ══════════════════════════════════════════════════════════
+    // ----------------------------------------------------------
 
     const ALLERGEN_NAMES = {
-      gluten:'Gluten', crustaceos:'Crustáceos', huevos:'Huevos', pescado:'Pescado',
-      cacahuetes:'Cacahuetes', soja:'Soja', lacteos:'Lácteos', frutos_cascara:'Frutos secos',
-      apio:'Apio', mostaza:'Mostaza', sesamo:'Sésamo', azufre:'Sulfitos',
+      gluten:'Gluten', crustaceos:'Crust�ceos', huevos:'Huevos', pescado:'Pescado',
+      cacahuetes:'Cacahuetes', soja:'Soja', lacteos:'L�cteos', frutos_cascara:'Frutos secos',
+      apio:'Apio', mostaza:'Mostaza', sesamo:'S�samo', azufre:'Sulfitos',
       altramuces:'Altramuces', moluscos:'Moluscos', setas:'Setas',
     };
 
@@ -67,7 +67,7 @@
     document.getElementById('page-logo').alt = APP_CONFIG.barName;
     document.getElementById('page-title').textContent   = PAGE_TITLE;
     if (PAGE_SUBTITLE) document.getElementById('page-subtitle').textContent = PAGE_SUBTITLE;
-    document.getElementById('menu-footer').textContent  = `© ${new Date().getFullYear()} ${APP_CONFIG.barName}`;
+    document.getElementById('menu-footer').textContent  = `� ${new Date().getFullYear()} ${APP_CONFIG.barName}`;
 
     const db      = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
     const RID     = APP_CONFIG.restaurantId;
@@ -105,7 +105,7 @@
 
       if (!items.length) {
         noRes.classList.add('visible');
-        noRes.innerHTML = `<i class="fas fa-${PAGE_ICON}" aria-hidden="true"></i><p>La carta de ${PAGE_TITLE} está siendo preparada.</p>`;
+        noRes.innerHTML = `<i class="fas fa-${PAGE_ICON}" aria-hidden="true"></i><p>La carta de ${PAGE_TITLE} est� siendo preparada.</p>`;
         return;
       }
 
@@ -113,7 +113,7 @@
     }
 
     function renderItems(items) {
-      // Agrupar por subcategoría
+      // Agrupar por subcategor�a
       const groups = {};
       items.forEach(item => {
         const key = item.subcategory || '';
@@ -148,12 +148,12 @@
               <div class="item-header">
                 <span class="item-name">
                   ${item.name}
-                  ${item.is_sugerencia ? '<span class="sugerencia-label">★ Chef</span>' : ''}
+                  ${item.is_sugerencia ? '<span class="sugerencia-label">? Chef</span>' : ''}
                 </span>
-                ${parseFloat(item.price) > 0 ? `<span class="item-price">${parseFloat(item.price).toFixed(2)} €</span>` : ''}
+                ${parseFloat(item.price) > 0 ? `<span class="item-price">${parseFloat(item.price).toFixed(2)} �</span>` : ''}
               </div>
               ${item.info ? `<p class="item-info">${item.info}</p>` : ''}
-              ${badges ? `<div class="item-allergens"><span class="allergens-label">Alérgenos:</span>${badges}</div>` : ''}
+              ${badges ? `<div class="item-allergens"><span class="allergens-label">Al�rgenos:</span>${badges}</div>` : ''}
             </div>`;
           content.appendChild(div);
         });
@@ -163,18 +163,18 @@
         
     }
 
-    // Toggle alérgenos (persistente)
+    // Toggle al�rgenos (persistente)
     const showAllergens = localStorage.getItem('showAllergens') === 'true';
     if (showAllergens) document.body.classList.add('show-allergens');
     const toggleBtn = document.createElement('button');
     toggleBtn.className = `toggle-allergens-btn${showAllergens ? ' active' : ''}`;
     toggleBtn.innerHTML = '<i class="fas fa-wheat-awn" aria-hidden="true"></i>';
-    toggleBtn.title = showAllergens ? 'Ocultar Alérgenos' : 'Mostrar Alérgenos';
-    toggleBtn.setAttribute('aria-label', 'Mostrar u ocultar alérgenos');
+    toggleBtn.title = showAllergens ? 'Ocultar Al�rgenos' : 'Mostrar Al�rgenos';
+    toggleBtn.setAttribute('aria-label', 'Mostrar u ocultar al�rgenos');
     toggleBtn.onclick = () => {
       const active = document.body.classList.toggle('show-allergens');
       toggleBtn.classList.toggle('active', active);
-      toggleBtn.title = active ? 'Ocultar Alérgenos' : 'Mostrar Alérgenos';
+      toggleBtn.title = active ? 'Ocultar Al�rgenos' : 'Mostrar Al�rgenos';
       localStorage.setItem('showAllergens', active);
     };
     document.body.appendChild(toggleBtn);
