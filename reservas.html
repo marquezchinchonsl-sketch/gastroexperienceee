@@ -115,13 +115,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script>
+    const RID   = APP_CONFIG.restaurantId;
+    const db    = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
+
     // ── Init ────────────────────────────────────────────────
     document.title = `Reservar Mesa | ${APP_CONFIG.barName}`;
     document.getElementById('res-bar-name').textContent = APP_CONFIG.barName;
     document.getElementById('res-bar-type').textContent = APP_CONFIG.barTagline;
-
-    const RID   = APP_CONFIG.restaurantId;
-    const db    = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
 
     // ── Cargar configuración dinámica desde BD ──────────────
     async function loadDynamicConfig() {

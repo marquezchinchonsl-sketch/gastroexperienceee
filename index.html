@@ -112,6 +112,9 @@
     });
     if (!strip.children.length) strip.style.display = 'none';
 
+    const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
+    const RID = APP_CONFIG.restaurantId;
+
     // ── Cargar configuración dinámica desde BD ──────────────
     async function loadDynamicConfig() {
       try {
@@ -177,8 +180,6 @@
     loadDynamicConfig();
 
     // ── Cargar categorías (BD o config) ─────────────────────
-    const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
-
     async function loadCategories() {
       let cats = APP_CONFIG.menuCategories;
       try {
