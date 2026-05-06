@@ -408,8 +408,36 @@ td { padding: 16px 24px; vertical-align: middle; color: var(--text); }
 .main-wrapper::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); }
 .main-wrapper::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.1); }
 
-.sidebar-header h1 { 
   background: linear-gradient(to right, var(--text), var(--gold));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Extra Styles for Business Tab */
+#tab-business .form-group input {
+  font-weight: 500;
+}
+
+#tab-business .save-btn {
+  margin-top: 8px;
+}
+
+#tab-business .section-card h2 i {
+  color: var(--gold);
+}
+
+.password-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.password-toggle-btn:hover {
+  color: var(--gold);
 }

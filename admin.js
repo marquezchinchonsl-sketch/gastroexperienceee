@@ -41,12 +41,18 @@ function toast(msg, type = 'info') {
 // ── Login ─────────────────────────────────────────────────
 const loginOverlay = document.getElementById('login-overlay');
 const pwInput      = document.getElementById('admin-password');
-function checkLogin() {
-  if (APP_CONFIG.adminPasswords.includes(pwInput.value.trim())) {
+async function checkLogin() {
+  const inputVal = pwInput.value.trim();
+  
+  // Primero comprobamos si hay contraseña en BD
+  const { data: dbPass } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'admin_password').single();
+  const validPasswords = dbPass ? [dbPass.value] : APP_CONFIG.adminPasswords;
+
+  if (validPasswords.includes(inputVal)) {
     sessionStorage.setItem('admin_auth','true');
     loginOverlay.classList.add('login-hide');
     const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
-    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics };
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab };
     if (map[activeTab]) map[activeTab]();
     checkOnboarding();
   } else {
@@ -60,7 +66,7 @@ pwInput.onkeydown = e => { if(e.key==='Enter') checkLogin(); };
 if (sessionStorage.getItem('admin_auth')==='true') {
   loginOverlay.classList.add('login-hide');
   const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
-  const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap };
+  const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab };
   if (map[activeTab]) map[activeTab]();
   checkOnboarding();
 }
@@ -84,7 +90,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active-tab');
-    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap };
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab };
     if (map[tab.dataset.tab]) map[tab.dataset.tab]();
   };
 });
@@ -565,7 +571,7 @@ document.getElementById('save-schedule-btn').onclick = async () => {
       to2:   document.getElementById(`to2-${day.key}`)?.value   || '',
     };
   });
-  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'weekly_schedule', value: JSON.stringify(schedule) });
+  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'weekly_schedule', value: JSON.stringify(schedule) }, { onConflict: 'restaurant_id,key' });
   
   if (error) {
     console.error('Error guardando horario:', error);
@@ -603,12 +609,12 @@ async function setSpecialDay(closed) {
   const d = document.getElementById('special-date-input').value;
   const reason = document.getElementById('special-reason-input') ? document.getElementById('special-reason-input').value : '';
   if (!d) { toast('Selecciona una fecha','error'); return; }
-  await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed });
+  await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed }, { onConflict: 'restaurant_id,date' });
   
   const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
   const reasons = rData && rData.value ? JSON.parse(rData.value) : {};
   reasons[d] = reason;
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'special_reasons', value: JSON.stringify(reasons) });
+  await db.from('settings').upsert({ restaurant_id: RID, key: 'special_reasons', value: JSON.stringify(reasons) }, { onConflict: 'restaurant_id,key' });
 
   loadSpecialDays();
   toast(`Día ${d} marcado como ${closed?'CERRADO':'ABIERTO (excepción)'}`, closed?'error':'success');
@@ -696,7 +702,7 @@ async function saveCategories() {
   const list = document.getElementById('categories-list');
   const cats = list._cats;
   if (!cats) return;
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'menu_categories', value: JSON.stringify(cats) });
+  await db.from('settings').upsert({ restaurant_id: RID, key: 'menu_categories', value: JSON.stringify(cats) }, { onConflict: 'restaurant_id,key' });
   toast('Secciones guardadas ✓', 'success');
 }
 // Botón guardar categorías (añadido dinámicamente)
@@ -711,6 +717,78 @@ setTimeout(() => {
     catSection.appendChild(btn);
   }
 }, 100);
+
+// ── NEGOCIO Y PERFIL ──────────────────────────────────────
+async function loadBusinessTab() {
+  const { data } = await db.from('settings').select('*').eq('restaurant_id', RID);
+  if (!data) return;
+
+  const get = k => data.find(x => x.key === k)?.value || '';
+
+  document.getElementById('biz-name').value      = get('biz_name') || APP_CONFIG.barName;
+  document.getElementById('biz-tagline').value   = get('biz_tagline') || APP_CONFIG.barTagline;
+  document.getElementById('biz-address').value   = get('biz_address') || APP_CONFIG.barAddress;
+  document.getElementById('biz-city').value      = get('biz_city') || APP_CONFIG.barCity;
+  document.getElementById('biz-phone').value     = get('biz_phone') || APP_CONFIG.barPhone;
+  document.getElementById('biz-instagram').value = get('biz_instagram') || APP_CONFIG.instagram;
+}
+
+document.getElementById('save-biz-info-btn').onclick = async () => {
+  const btn = document.getElementById('save-biz-info-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+  const payload = [
+    { key: 'biz_name',      value: document.getElementById('biz-name').value },
+    { key: 'biz_tagline',   value: document.getElementById('biz-tagline').value },
+    { key: 'biz_address',   value: document.getElementById('biz-address').value },
+    { key: 'biz_city',      value: document.getElementById('biz-city').value },
+    { key: 'biz_phone',     value: document.getElementById('biz-phone').value },
+    { key: 'biz_instagram', value: document.getElementById('biz-instagram').value },
+  ];
+
+  for (const item of payload) {
+    await db.from('settings').upsert({ restaurant_id: RID, key: item.key, value: item.value }, { onConflict: 'restaurant_id,key' });
+  }
+
+  // Actualizar UI admin local
+  document.getElementById('admin-bar-label').textContent = document.getElementById('biz-name').value;
+  APP_CONFIG.barName = document.getElementById('biz-name').value;
+  
+  toast('Información del negocio actualizada ✓', 'success');
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios';
+};
+
+document.getElementById('save-biz-pass-btn').onclick = async () => {
+  const pass = document.getElementById('biz-new-password').value.trim();
+  if (pass.length < 6) { toast('La contraseña debe tener al menos 6 caracteres', 'error'); return; }
+
+  if (!confirm('¿Seguro que quieres cambiar la contraseña de acceso? Deberás usar la nueva la próxima vez.')) return;
+
+  const btn = document.getElementById('save-biz-pass-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+
+  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'admin_password', value: pass }, { onConflict: 'restaurant_id,key' });
+
+  if (error) {
+    toast('Error al cambiar contraseña: ' + error.message, 'error');
+  } else {
+    toast('Contraseña actualizada con éxito ✓', 'success');
+    document.getElementById('biz-new-password').value = '';
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Actualizar Contraseña';
+};
+
+window.togglePasswordView = (id) => {
+  const input = document.getElementById(id);
+  const icon = event.currentTarget.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.classList.replace('fa-eye', 'fa-eye-slash');
+  } else {
+    input.type = 'password';
+    icon.classList.replace('fa-eye-slash', 'fa-eye');
+  }
+};
 
 // ── CONFIGURACIÓN ─────────────────────────────────────────
 async function loadConfigTab() {
@@ -736,7 +814,7 @@ if(document.getElementById('save-limits-btn')) {
     const btn = document.getElementById('save-limits-btn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
     const val = document.getElementById('cfg-limit-pax').value;
-    await db.from('settings').upsert({ restaurant_id: RID, key: 'limit_pax', value: val });
+    await db.from('settings').upsert({ restaurant_id: RID, key: 'limit_pax', value: val }, { onConflict: 'restaurant_id,key' });
     toast('Límite guardado ✓','success');
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Límite';
   };
@@ -748,10 +826,10 @@ document.getElementById('save-ejs-btn').onclick = async () => {
   const map = { ejs_admin_email:'ejs-admin-email', ejs_public_key:'ejs-public-key', ejs_service_id:'ejs-service-id', ejs_template_admin:'ejs-template-admin', ejs_template_client:'ejs-template-client' };
   for (const [key, elId] of Object.entries(map)) {
     const value = document.getElementById(elId).value;
-    await db.from('settings').upsert({ restaurant_id: RID, key, value });
+    await db.from('settings').upsert({ restaurant_id: RID, key, value }, { onConflict: 'restaurant_id,key' });
   }
   const autoConf = document.getElementById('auto-confirm-toggle').checked;
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'auto_confirm', value: autoConf ? 'true' : 'false' });
+  await db.from('settings').upsert({ restaurant_id: RID, key: 'auto_confirm', value: autoConf ? 'true' : 'false' }, { onConflict: 'restaurant_id,key' });
   toast('Preferencias guardadas ✓','success');
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Preferencias';
 };
@@ -939,8 +1017,9 @@ async function checkOnboarding() {
     } else {
       widget.style.display = 'none';
     }
+    console.log('Configuración dinámica cargada al 100% desde Supabase');
   } catch(e) {
-    console.error('Error checking onboarding:', e);
+    console.warn('Error cargando config dinámica:', e);
   }
 }
 
@@ -1203,4 +1282,118 @@ document.getElementById('save-tables-btn').onclick = async () => {
     toast('Configuración de Zonas y Mesas guardada', 'success');
   }
   btn.innerHTML = '<i class="fas fa-save"></i> Guardar Plano';
+};
+
+// ── NEGOCIO Y PERFIL ──────────────────────────────────────
+async function loadBusinessTab() {
+  console.log('Cargando datos de negocio para RID:', RID);
+  try {
+    const { data, error } = await db.from('settings').select('*').eq('restaurant_id', RID);
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      console.log('No hay datos personalizados en BD, usando valores de config.js');
+    }
+
+    const get = k => data.find(x => x.key === k)?.value || '';
+
+    const nameField = document.getElementById('biz-name');
+    const taglineField = document.getElementById('biz-tagline');
+    const addressField = document.getElementById('biz-address');
+    const cityField = document.getElementById('biz-city');
+    const phoneField = document.getElementById('biz-phone');
+    const instaField = document.getElementById('biz-instagram');
+
+    if (nameField) nameField.value = get('biz_name') || APP_CONFIG.barName;
+    if (taglineField) taglineField.value = get('biz_tagline') || APP_CONFIG.barTagline;
+    if (addressField) addressField.value = get('biz_address') || APP_CONFIG.barAddress;
+    if (cityField) cityField.value = get('biz_city') || APP_CONFIG.barCity;
+    if (phoneField) phoneField.value = get('biz_phone') || APP_CONFIG.barPhone;
+    if (instaField) instaField.value = get('biz_instagram') || APP_CONFIG.instagram;
+    
+    console.log('Datos cargados correctamente');
+  } catch (err) {
+    console.error('Error al cargar datos de negocio:', err);
+    toast('Error al cargar datos: ' + err.message, 'error');
+  }
+}
+
+document.getElementById('save-biz-info-btn').onclick = async () => {
+  const btn = document.getElementById('save-biz-info-btn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando en BD...';
+
+  const payload = [
+    { key: 'biz_name',      value: document.getElementById('biz-name').value.trim() },
+    { key: 'biz_tagline',   value: document.getElementById('biz-tagline').value.trim() },
+    { key: 'biz_address',   value: document.getElementById('biz-address').value.trim() },
+    { key: 'biz_city',      value: document.getElementById('biz-city').value.trim() },
+    { key: 'biz_phone',     value: document.getElementById('biz-phone').value.trim() },
+    { key: 'biz_instagram', value: document.getElementById('biz-instagram').value.trim() },
+  ];
+
+  try {
+    console.log('Iniciando guardado de datos...', payload);
+    
+    // Ejecutamos todos los upserts en paralelo para mayor velocidad
+    const promises = payload.map(item => 
+      db.from('settings').upsert(
+        { restaurant_id: RID, key: item.key, value: item.value }, 
+        { onConflict: 'restaurant_id,key' }
+      )
+    );
+    
+    const results = await Promise.all(promises);
+    const errors = results.filter(r => r.error);
+    
+    if (errors.length > 0) {
+      throw new Error(errors[0].error.message);
+    }
+
+    // Actualizar UI admin local
+    const newName = document.getElementById('biz-name').value;
+    document.getElementById('admin-bar-label').textContent = newName;
+    APP_CONFIG.barName = newName;
+    document.title = `Admin | ${newName}`;
+    
+    console.log('¡Guardado exitoso!');
+    toast('¡Información actualizada y guardada al 100%! ✓', 'success');
+  } catch (err) {
+    console.error('Error al guardar:', err);
+    toast('Error al guardar: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = originalHtml;
+  }
+};
+
+document.getElementById('save-biz-pass-btn').onclick = async () => {
+  const pass = document.getElementById('biz-new-password').value.trim();
+  if (pass.length < 6) { toast('La contraseña debe tener al menos 6 caracteres', 'error'); return; }
+
+  if (!confirm('¿Seguro que quieres cambiar la contraseña de acceso? Deberás usar la nueva la próxima vez.')) return;
+
+  const btn = document.getElementById('save-biz-pass-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+
+  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'admin_password', value: pass }, { onConflict: 'restaurant_id,key' });
+
+  if (error) {
+    toast('Error al cambiar contraseña: ' + error.message, 'error');
+  } else {
+    toast('Contraseña actualizada con éxito ✓', 'success');
+    document.getElementById('biz-new-password').value = '';
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Actualizar Contraseña';
+};
+
+window.togglePasswordView = (id) => {
+  const input = document.getElementById(id);
+  const icon = event.currentTarget.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.classList.replace('fa-eye', 'fa-eye-slash');
+  } else {
+    input.type = 'password';
+    icon.classList.replace('fa-eye-slash', 'fa-eye');
+  }
 };

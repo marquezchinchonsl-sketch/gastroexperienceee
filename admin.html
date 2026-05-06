@@ -39,6 +39,7 @@
       <button class="nav-tab" data-tab="tables"><i class="fas fa-chair"></i> Plano de Mesas</button>
       <button class="nav-tab" data-tab="schedule"><i class="fas fa-clock"></i> Horarios</button>
       <button class="nav-tab" data-tab="qr"><i class="fas fa-qrcode"></i> Códigos QR</button>
+      <button class="nav-tab" data-tab="business"><i class="fas fa-store"></i> Negocio</button>
       <button class="nav-tab" data-tab="config"><i class="fas fa-sliders-h"></i> Ajustes</button>
     </nav>
     
@@ -278,6 +279,60 @@
             <div id="tables-map-area" style="width:100%; height:500px; background:var(--surface); border:2px dashed var(--border); border-radius:12px; position:relative; overflow:hidden; box-shadow:inset 0 2px 10px rgba(0,0,0,0.03);">
               <!-- JS Draggable Tables -->
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB: NEGOCIO (PERFIL Y SEGURIDAD) ══ -->
+      <div id="tab-business" class="tab-content">
+        <div class="section-card">
+          <h2><i class="fas fa-id-card"></i> Información del Negocio</h2>
+          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Esta información es la que verán tus clientes en la carta digital y página de reservas.</p>
+          
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div class="form-group">
+              <label>Nombre del Restaurante</label>
+              <input type="text" id="biz-name" placeholder="Ej: Mi Restaurante Premium" style="background:var(--surface);">
+            </div>
+            <div class="form-group">
+              <label>Eslogan / Tagline</label>
+              <input type="text" id="biz-tagline" placeholder="Ej: Cocina de Autor y Tradición" style="background:var(--surface);">
+            </div>
+            <div class="form-group">
+              <label>Dirección</label>
+              <input type="text" id="biz-address" placeholder="Calle Ejemplo, 12" style="background:var(--surface);">
+            </div>
+            <div class="form-group">
+              <label>Ciudad</label>
+              <input type="text" id="biz-city" placeholder="Madrid" style="background:var(--surface);">
+            </div>
+            <div class="form-group">
+              <label>Teléfono de Contacto</label>
+              <input type="text" id="biz-phone" placeholder="600 000 000" style="background:var(--surface);">
+            </div>
+            <div class="form-group">
+              <label>Instagram (URL completa)</label>
+              <input type="text" id="biz-instagram" placeholder="https://instagram.com/..." style="background:var(--surface);">
+            </div>
+          </div>
+          
+          <button id="save-biz-info-btn" class="save-btn" style="margin-top:24px; max-width:250px;"><i class="fas fa-save"></i> Guardar Cambios</button>
+        </div>
+
+        <div class="section-card" style="border-top: 4px solid var(--error);">
+          <h2><i class="fas fa-lock"></i> Seguridad y Acceso</h2>
+          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Cambia la contraseña de acceso a este panel de administración.</p>
+          
+          <div style="max-width:400px;">
+            <div class="form-group">
+              <label>Nueva Contraseña</label>
+              <div style="position:relative;">
+                <input type="password" id="biz-new-password" placeholder="Mínimo 6 caracteres" style="background:var(--surface); padding-right:45px;">
+                <button type="button" onclick="togglePasswordView('biz-new-password')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-dim); cursor:pointer;"><i class="fas fa-eye"></i></button>
+              </div>
+            </div>
+            <button id="save-biz-pass-btn" class="btn-danger" style="margin-top:10px; width:100%; padding:14px;"><i class="fas fa-key"></i> Actualizar Contraseña</button>
+            <p style="font-size:0.75rem; color:var(--text-dim); margin-top:12px; text-align:center;"><i class="fas fa-info-circle"></i> La contraseña antigua de config.js dejará de funcionar.</p>
           </div>
         </div>
       </div>
