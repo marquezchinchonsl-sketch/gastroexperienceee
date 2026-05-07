@@ -101,9 +101,23 @@ dateInput.value = new Date().toISOString().split('T')[0];
 dateInput.onchange = loadDashboard;
 
 async function loadDashboard() {
-  const { data } = await db.from('reservations').select('*').eq('date', dateInput.value).eq('restaurant_id', RID).order('time');
+  const btn = document.getElementById('refresh-btn');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+  let query = db.from('reservations').select('*').eq('restaurant_id', RID).order('time');
+  if (dateInput.value) {
+    query = query.eq('date', dateInput.value);
+  } else {
+    // Si no hay fecha (modo Pendientes), mostramos todas las pendientes
+    query = query.eq('status', 'pending').order('date');
+  }
+  
+  const { data } = await query;
   updateStats(data || []);
   renderTable(data || []);
+  
+  btn.innerHTML = orig;
 }
 
 function updateStats(res) {
@@ -171,28 +185,35 @@ function renderTable(res) {
 }
 
 async function confirmReservation(id, email, name, date, time) {
-  if (!confirm(`¿Confirmar reserva de ${name} y enviar email?`)) return;
+  if (!confirm(`¿Confirmar reserva de ${name}?`)) return;
   
   try {
-    const { data: cfg, error: cfgErr } = await db.from('settings').select('*').eq('restaurant_id', RID);
-    if (cfgErr) throw cfgErr;
+    // 1. Actualizar estado en DB primero
+    const { error: updErr } = await db.from('reservations').update({ status:'confirmed' }).eq('id', id).eq('restaurant_id', RID);
+    if (updErr) throw updErr;
+    
+    toast('Reserva confirmada ✓', 'success');
+    loadDashboard(); // Refrescar UI inmediatamente
 
+    // 2. Intentar enviar Email (opcional si falla)
+    const { data: cfg } = await db.from('settings').select('*').eq('restaurant_id', RID);
     const get = k => cfg?.find(s => s.key === k)?.value;
     const pub = get('ejs_public_key'), svc = get('ejs_service_id'), tpl = get('ejs_template_client');
     
-    if (!pub || !svc || !tpl) { 
-      toast('Configura EmailJS primero en la pestaña Ajustes','error'); 
-      return; 
+    if (pub && svc && tpl) {
+      try {
+        emailjs.init(pub);
+        await emailjs.send(svc, tpl, { 
+          to_name: name, to_email: email, client_email: email, 
+          reservation_date: date, reservation_time: time, 
+          bar_name: APP_CONFIG.barName 
+        });
+        toast('Email de confirmación enviado', 'success');
+      } catch(e) { 
+        console.warn('EmailJS error:', e);
+        toast('Reserva confirmada, pero falló el envío del email', 'warning');
+      }
     }
-
-    const { error: updErr } = await db.from('reservations').update({ status:'confirmed' }).eq('id', id).eq('restaurant_id', RID);
-    if (updErr) throw updErr;
-
-    emailjs.init(pub);
-    await emailjs.send(svc, tpl, { to_name:name, to_email:email, client_email:email, reservation_date:date, reservation_time:time, bar_name: APP_CONFIG.barName });
-    
-    toast('Reserva confirmada y email enviado ✓','success');
-    loadDashboard();
   } catch(err) {
     console.error('Error al confirmar:', err);
     toast('Error: ' + (err.message || 'No se pudo completar la acción'), 'error');
@@ -220,14 +241,13 @@ window.deleteReservation = deleteReservation;
 
 document.getElementById('refresh-btn').onclick = () => { loadDashboard(); toast('Actualizado','info'); };
 
-document.getElementById('view-all-btn').onclick = async () => {
-  const { data } = await db.from('reservations').select('*').eq('status','pending').eq('restaurant_id', RID).order('date').order('time');
+document.getElementById('view-all-btn').onclick = () => {
   dateInput.value = '';
-  updateStats(data||[]);
-  renderTable(data||[]);
+  loadDashboard();
 };
 
 document.getElementById('view-confirmed-btn').onclick = async () => {
+  // Para ver confirmadas específicamente, usamos una consulta directa
   const { data } = await db.from('reservations').select('*').eq('status','confirmed').eq('restaurant_id', RID).order('date').order('time');
   dateInput.value = '';
   updateStats(data||[]);
