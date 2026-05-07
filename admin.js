@@ -143,7 +143,7 @@ function renderTable(res) {
       <td><strong>${r.time}</strong></td>
       <td style="font-size:0.8rem;color:var(--text-dim);">${r.date}</td>
       <td><strong>${r.name}</strong></td>
-      <td>${r.people}</td>
+      <td>${r.people || 0}</td>
       <td><span class="zone-tag ${r.zone==='terrace'?'zone-terrace':''}">${r.zonename||r.zone}</span></td>
       <td><div style="font-size:0.85rem;">${r.phone}</div><div style="font-size:0.72rem;color:var(--text-dim);">${r.email}</div></td>
       <td><span class="status-badge ${r.status}">${confirmed?'Confirmada':'Pendiente'}</span></td>
@@ -317,7 +317,7 @@ function renderProducts() {
         <div><strong>${p.name}</strong>${p.is_sugerencia?' <span title="Recomendación" style="font-size:0.9rem;">⭐</span>':''}${p.allergens?.bestseller?' <span title="Más Vendido" style="font-size:0.9rem;">🔥</span>':''}<div style="font-size:0.75rem;color:var(--text-dim);">${(p.info||'').substring(0,40)}</div></div>
       </td>
       <td style="color:var(--text-dim);font-size:0.82rem;">${p.category}</td>
-      <td style="color:var(--success);font-weight:700;">${parseFloat(p.price).toFixed(2)} €</td>
+      <td style="color:var(--success);font-weight:700;">${parseFloat(p.price || 0).toFixed(2)} €</td>
       <td style="font-size:0.7rem;">${allergenBadges||'<span style="color:var(--text-muted)">—</span>'}</td>
       <td style="text-align:right;">
         <button class="action-btn edit-btn" onclick="openEditModal('${p.id}')"><i class="fas fa-edit"></i></button>
@@ -445,8 +445,8 @@ document.getElementById('process-import-btn').onclick = async () => {
   lines.forEach(line => {
     line = line.trim();
     if(!line) return;
-    // Regex para "Nombre plato 12.50" o "Nombre plato - 12,50€"
-    const match = line.match(/(.+?)(?:[\s:-]*)([\d]+[.,][\d]{2})[\s]*€?$/);
+    // Regex para "Nombre plato 12.50", "Nombre plato 12", "Nombre plato - 12,50€"
+    const match = line.match(/(.+?)(?:[\s:-]*)([\d]+(?:[.,][\d]{1,2})?)[\s]*€?$/);
     if(match) {
       payloads.push({ restaurant_id: RID, name: match[1].trim(), price: parseFloat(match[2].replace(',','.')), category: cat, visible: true, allergens: {} });
     } else {
@@ -634,6 +634,24 @@ async function loadCategories() {
   let cats = APP_CONFIG.menuCategories;
   if (data?.value) { try { cats = JSON.parse(data.value); } catch(e){} }
   renderCategoriesList(cats);
+  
+  // Actualizar selects de categorías en todo el admin
+  const selects = ['category-filter', 'p-category', 'import-category-select'];
+  selects.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const currentVal = el.value;
+    el.innerHTML = '';
+    cats.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.label;
+      el.appendChild(o);
+    });
+    if (currentVal && Array.from(el.options).some(o => o.value === currentVal)) {
+      el.value = currentVal;
+    }
+  });
 }
 
 function renderCategoriesList(cats) {

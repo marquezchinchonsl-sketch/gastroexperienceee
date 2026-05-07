@@ -16,14 +16,14 @@
 </head>
 <body>
 
-  <!-- Botón reservar fijo -->
-  <a href="/reservas" class="reservation-btn" id="reservation-btn" aria-label="Reservar mesa">
+  <!-- BotÃ³n reservar fijo -->
+  <a href="reservas.html" class="reservation-btn" id="reservation-btn" aria-label="Reservar mesa">
     <i class="fas fa-calendar-check"></i>
     <span>Reservar</span>
     <i class="fas fa-arrow-right"></i>
   </a>
 
-  <!-- ══ HERO ══════════════════════════════════════════════ -->
+  <!-- â•â• HERO â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
   <section class="hero" role="banner">
     <div class="hero-bg" id="hero-bg"></div>
     <div class="hero-particles" id="hero-particles" aria-hidden="true"></div>
@@ -39,7 +39,7 @@
     </div>
   </section>
 
-  <!-- ══ SECCIÓN CARTA ═════════════════════════════════════ -->
+  <!-- â•â• SECCIÃ“N CARTA â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
   <section class="section-label" aria-labelledby="carta-heading">
     <h2 id="carta-heading">Nuestra Carta</h2>
     <div class="line"></div>
@@ -48,7 +48,7 @@
   <!-- Redes sociales -->
   <nav class="social-strip" id="social-strip" aria-label="Redes sociales"></nav>
 
-  <!-- Categorías -->
+  <!-- CategorÃ­as -->
   <main class="menu-sections" id="menu-sections" aria-label="Secciones de la carta">
     <div class="loading-skeleton">
       <div class="skeleton-card"></div>
@@ -66,8 +66,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script>
-    // ── Aplicar config ──────────────────────────────────────
-    document.title = APP_CONFIG.barName + ' · Carta';
+    // â”€â”€ Aplicar config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    document.title = APP_CONFIG.barName + ' Â· Carta';
     document.querySelector('meta[name="description"]').content =
       `Carta digital de ${APP_CONFIG.barName}. ${APP_CONFIG.barTagline}`;
 
@@ -75,17 +75,17 @@
     document.getElementById('hero-tagline').textContent  = APP_CONFIG.barTagline;
     document.getElementById('footer-brand').textContent  = APP_CONFIG.barName;
     document.getElementById('footer-copy').textContent   =
-      `© ${new Date().getFullYear()} ${APP_CONFIG.barName} · Todos los derechos reservados`;
+      `Â© ${new Date().getFullYear()} ${APP_CONFIG.barName} Â· Todos los derechos reservados`;
 
     // Hero background
     document.getElementById('hero-bg').style.backgroundImage = "url('images/hero.png')";
 
-    // Dirección
+    // DirecciÃ³n
     const addrEl = document.getElementById('hero-address');
-    const addr   = [APP_CONFIG.barAddress, APP_CONFIG.barCity].filter(Boolean).join(' · ');
+    const addr   = [APP_CONFIG.barAddress, APP_CONFIG.barCity].filter(Boolean).join(' Â· ');
     if (addr.trim()) addrEl.textContent = addr;
 
-    // Teléfonos
+    // TelÃ©fonos
     const contacts = document.getElementById('hero-contacts');
     [APP_CONFIG.barPhone, APP_CONFIG.barPhone2].filter(Boolean).forEach(p => {
       const a = document.createElement('a');
@@ -99,7 +99,7 @@
       { key:'instagram',    icon:'fab fa-instagram',  label:'Instagram' },
       { key:'facebook',     icon:'fab fa-facebook-f', label:'Facebook'  },
       { key:'whatsapp',     icon:'fab fa-whatsapp',   label:'WhatsApp'  },
-      { key:'googleReviews',icon:'fab fa-google',     label:'Reseñas Google' },
+      { key:'googleReviews',icon:'fab fa-google',     label:'ReseÃ±as Google' },
     ];
     const strip = document.getElementById('social-strip');
     socialLinks.forEach(({ key, icon, label }) => {
@@ -115,7 +115,7 @@
     const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
     const RID = APP_CONFIG.restaurantId;
 
-    // ── Cargar configuración dinámica desde BD ──────────────
+    // â”€â”€ Cargar configuraciÃ³n dinÃ¡mica desde BD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     async function loadDynamicConfig() {
       try {
         const { data } = await db.from('settings').select('*').eq('restaurant_id', APP_CONFIG.restaurantId);
@@ -126,9 +126,9 @@
         const bizName = get('biz_name');
         if (bizName) {
           APP_CONFIG.barName = bizName;
-          document.title = bizName + ' · Carta';
+          document.title = bizName + ' Â· Carta';
           document.getElementById('footer-brand').textContent = bizName;
-          document.getElementById('footer-copy').textContent = `© ${new Date().getFullYear()} ${bizName} · Todos los derechos reservados`;
+          document.getElementById('footer-copy').textContent = `Â© ${new Date().getFullYear()} ${bizName} Â· Todos los derechos reservados`;
           document.getElementById('hero-logo').alt = bizName;
         }
 
@@ -141,7 +141,7 @@
         const bizAddr = get('biz_address');
         const bizCity = get('biz_city');
         if (bizAddr || bizCity) {
-          const addr = [bizAddr || APP_CONFIG.barAddress, bizCity || APP_CONFIG.barCity].filter(Boolean).join(' · ');
+          const addr = [bizAddr || APP_CONFIG.barAddress, bizCity || APP_CONFIG.barCity].filter(Boolean).join(' Â· ');
           document.getElementById('hero-address').textContent = addr;
         }
 
@@ -172,14 +172,14 @@
             strip.style.display = 'flex';
           }
         }
-        console.log('%c✓ Configuración dinámica cargada desde Supabase', 'color: #059669; font-weight: bold;');
+        console.log('%câœ“ ConfiguraciÃ³n dinÃ¡mica cargada desde Supabase', 'color: #059669; font-weight: bold;');
       } catch (e) {
-        console.warn('Error cargando config dinámica:', e);
+        console.warn('Error cargando config dinÃ¡mica:', e);
       }
     }
     loadDynamicConfig();
 
-    // ── Cargar categorías (BD o config) ─────────────────────
+    // â”€â”€ Cargar categorÃ­as (BD o config) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     async function loadCategories() {
       let cats = APP_CONFIG.menuCategories;
       try {
@@ -195,12 +195,13 @@
       const container = document.getElementById('menu-sections');
       container.innerHTML = '';
       if (!cats || !cats.length) {
-        container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px;">La carta está siendo preparada...</p>';
+        container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px;">La carta estÃ¡ siendo preparada...</p>';
         return;
       }
       cats.forEach((cat, i) => {
         const a = document.createElement('a');
-        a.href = cat.page || `${cat.id}`;
+        const page = cat.page || cat.id;
+        a.href = page.endsWith('.html') ? page : `${page}.html`;
         a.className = 'category-card';
         a.style.setProperty('--i', i);
         a.setAttribute('aria-label', `Ver ${cat.label}`);
@@ -219,7 +220,7 @@
       });
     }
 
-    // ── Partículas hero ──────────────────────────────────────
+    // â”€â”€ PartÃ­culas hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const pContainer = document.getElementById('hero-particles');
     for (let i = 0; i < 20; i++) {
       const p = document.createElement('div');
@@ -229,7 +230,7 @@
       pContainer.appendChild(p);
     }
 
-    // ── Parallax hero ────────────────────────────────────────
+    // â”€â”€ Parallax hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const heroBg = document.getElementById('hero-bg');
     let ticking = false;
     window.addEventListener('scroll', () => {
@@ -242,12 +243,12 @@
       }
     }, { passive: true });
 
-    // ── PWA ──────────────────────────────────────────────────
+    // â”€â”€ PWA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
 
-    // ── Tracking QR Scans ───────────────────────────────────
+    // â”€â”€ Tracking QR Scans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('ref') === 'qr') {
       db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'qr_scans').single()
