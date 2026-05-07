@@ -77,10 +77,12 @@ if (typeof window !== 'undefined') {
       const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
       db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'stats_views').single()
         .then(({data}) => {
-          let views = data?.value ? JSON.parse(data.value) : {};
-          views[path] = (views[path] || 0) + 1;
-          db.from('settings').upsert({ restaurant_id: APP_CONFIG.restaurantId, key: 'stats_views', value: JSON.stringify(views) }).then();
-        });
+          try {
+            let views = data?.value ? JSON.parse(data.value) : {};
+            views[path] = (views[path] || 0) + 1;
+            db.from('settings').upsert({ restaurant_id: APP_CONFIG.restaurantId, key: 'stats_views', value: JSON.stringify(views) }).then();
+          } catch(e) { console.warn('Stats error:', e); }
+        }).catch(e => {});
 
       // 3. WebSockets para auto-refresh MÁGICO en Cliente
       if (path.includes('reservas')) {
