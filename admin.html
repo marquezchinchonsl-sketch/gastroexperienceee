@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -434,14 +434,14 @@
       <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:32px;">
         <div>
           <div class="form-group"><label>Nombre Comercial</label><input type="text" id="p-name" required placeholder="Ej: Trufa de Chocolate Artesanal"></div>
-          <div class="form-group"><label>DescripciÃ³n Persuasiva</label><textarea id="p-info" rows="3" placeholder="Describe los ingredientes, la cocciÃ³n o la historia del plato..."></textarea></div>
+          <div class="form-group"><label>Descripción Persuasiva</label><textarea id="p-info" rows="3" placeholder="Describe los ingredientes, la cocción o la historia del plato..."></textarea></div>
           
           <div style="display:flex; gap:16px;">
-            <div class="form-group" style="flex:1;"><label>CategorÃ­a</label><select id="p-category" required></select></div>
-            <div class="form-group" style="width:120px;"><label>Precio (â‚¬)</label><input type="number" step="0.01" id="p-price" required placeholder="0.00"></div>
+            <div class="form-group" style="flex:1;"><label>Categoría</label><select id="p-category" required></select></div>
+            <div class="form-group" style="width:120px;"><label>Precio (€)</label><input type="number" step="0.01" id="p-price" required placeholder="0.00"></div>
           </div>
           
-          <div class="form-group"><label>Orden de visualizaciÃ³n</label><input type="number" id="p-position" placeholder="1-100" min="0"></div>
+          <div class="form-group"><label>Orden de visualización</label><input type="number" id="p-position" placeholder="1-100" min="0"></div>
           
           <div class="checkbox-group" style="margin-bottom:12px; background:var(--success-bg); border-color:rgba(5,150,105,0.2);"><input type="checkbox" id="p-visible" checked><label for="p-visible" style="color:var(--success);">Públicamente Visible en Carta</label></div>
           <div class="checkbox-group" style="margin-bottom:12px;"><input type="checkbox" id="p-sugerencia"><label for="p-sugerencia">â­ Etiqueta: RecomendaciÃ³n del Chef</label></div>
@@ -450,7 +450,7 @@
         
         <div>
           <div class="form-group" style="background:var(--surface-2); padding:20px; border-radius:var(--radius-sm); border:1px dashed var(--border);">
-            <label style="margin-bottom:12px;">FotografÃ­a del Plato (Opcional pero Recomendado)</label>
+            <label style="margin-bottom:12px;">Fotografía del Plato (Opcional pero Recomendado)</label>
             <input type="file" id="p-image" accept="image/*" style="display:none;" onchange="previewImage(event)">
             <button type="button" onclick="document.getElementById('p-image').click()" class="btn-surface" style="width:100%; margin-bottom:12px; border:1px solid var(--border);"><i class="fas fa-cloud-upload-alt"></i> Subir desde dispositivo</button>
             <input type="text" id="p-image-url" placeholder="O introduce URL directa..." style="font-size:0.85rem; padding:10px;">
@@ -459,7 +459,7 @@
             </div>
           </div>
           
-          <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text-dim); margin:24px 0 12px 0;">AlÃ©rgenos (InformaciÃ³n Obligatoria)</label>
+          <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--text-dim); margin:24px 0 12px 0;">Alérgenos (Información Obligatoria)</label>
           <div class="allergens-grid" id="allergens-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;"></div>
         </div>
       </div>
