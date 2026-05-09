@@ -177,13 +177,13 @@
         try { return JSON.parse(data.value); } catch(e) {}
       }
       return {
-        lunes:     { open: false },
-        martes:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
-        miercoles: { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
-        jueves:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
-        viernes:   { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
-        sabado:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
-        domingo:   { open: true, from: "12:00", to: "18:00" }
+        Lunes:     { open: false },
+        Martes:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
+        Miercoles: { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
+        Jueves:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
+        Viernes:   { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
+        Sabado:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
+        Domingo:   { open: true, from: "12:00", to: "18:00" }
       };
     }
 
@@ -245,7 +245,7 @@
 
         loader.remove();
         const globalLimit = parseInt(capLimit?.value) || 0;
-        const days = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+        const days = ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'];
         const dayKey = days[new Date(dateVal).getDay()];
 
         if (specialDay && specialDay.is_closed) {
@@ -255,7 +255,7 @@
 
         const daySchedule = schedule[dayKey];
         if (!daySchedule || daySchedule.open === false) {
-          showClosed(`<i class="fas fa-moon"></i> Cerramos los ${dayKey.charAt(0).toUpperCase()+dayKey.slice(1)}s.`);
+          showClosed(`<i class="fas fa-moon"></i> Cerramos los ${dayKey}s.`);
           return;
         }
 
@@ -305,6 +305,9 @@
     }
 
     async function saveReservation(res) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const source = urlParams.get('ref') || 'web'; 
+      
       let isAutoConfirm = false;
       try {
         const { data: cfg } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'auto_confirm').single();
@@ -313,7 +316,8 @@
       const status = isAutoConfirm ? 'confirmed' : 'pending';
       const { error } = await db.from('reservations').insert([{
         restaurant_id: RID, date: res.date, time: res.time, zone: res.zone, zonename: res.zoneName,
-        people: parseInt(res.people), name: res.name, phone: res.phone, email: res.email, status
+        people: parseInt(res.people), name: res.name, phone: res.phone, email: res.email, status,
+        source
       }]);
       if (error) throw error;
       return status;

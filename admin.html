@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -32,7 +32,7 @@
     </div>
     
     <nav class="admin-nav">
-      <button class="nav-tab active" data-tab="metrics"><i class="fas fa-home"></i> Dashboard</button>
+      <button class="nav-tab active" data-tab="metrics"><i class="fas fa-home"></i> Resumen</button>
       <button class="nav-tab" data-tab="reservations"><i class="fas fa-calendar-check"></i> Reservas</button>
       <button class="nav-tab" data-tab="menu"><i class="fas fa-utensils"></i> Carta Digital</button>
       <button class="nav-tab" data-tab="categories"><i class="fas fa-list-ul"></i> Secciones</button>
@@ -41,6 +41,7 @@
       <button class="nav-tab" data-tab="qr"><i class="fas fa-qrcode"></i> Códigos QR</button>
       <button class="nav-tab" data-tab="business"><i class="fas fa-store"></i> Negocio</button>
       <button class="nav-tab" data-tab="config"><i class="fas fa-sliders-h"></i> Ajustes</button>
+      <button class="nav-tab" data-tab="integrations"><i class="fas fa-plug"></i> Integraciones</button>
     </nav>
     
     <div class="sidebar-footer">
@@ -52,7 +53,7 @@
   <div class="main-wrapper">
     
     <header class="topbar">
-      <div class="topbar-title" id="admin-title">Panel de Control</div>
+      <div class="topbar-title" id="admin-title">Panel de Administración</div>
       <div class="user-info">
         <span id="admin-bar-label">Cargando...</span>
         <div class="avatar"><i class="fas fa-crown"></i></div>
@@ -96,23 +97,23 @@
             <div class="trend"><i class="fas fa-minus"></i> Crecimiento estable</div>
           </div>
           <div class="stat-card">
-            <h3>Hora Más Demandada <i class="fas fa-fire"></i></h3>
+            <h3>Hora de Mayor Demanda <i class="fas fa-fire"></i></h3>
             <p id="metric-peak-hour" style="font-size:2rem;">-</p>
-            <div class="trend up"><i class="fas fa-chart-line"></i> Turno con mayor ROI</div>
+            <div class="trend up"><i class="fas fa-chart-line"></i> Turno más concurrido</div>
           </div>
         </div>
         
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap:24px; margin-top:32px;">
           <div class="section-card" style="margin:0;">
-            <h3 style="margin-bottom:20px; font-size:1.1rem; color:var(--text); font-weight:600;">EvoluciÃ³n de Ingresos y Reservas</h3>
+            <h3 style="margin-bottom:20px; font-size:1.1rem; color:var(--text); font-weight:600;">Evolución de Ingresos y Reservas</h3>
             <div style="position:relative; height:280px;"><canvas id="chart-reservations"></canvas></div>
           </div>
           <div class="section-card" style="margin:0;">
-            <h3 style="margin-bottom:20px; font-size:1.1rem; color:var(--text); font-weight:600;">InterÃ©s de Clientes por Zona</h3>
+            <h3 style="margin-bottom:20px; font-size:1.1rem; color:var(--text); font-weight:600;">Interés de Clientes por Zona</h3>
             <div style="position:relative; height:280px; width:80%; margin:0 auto;"><canvas id="chart-zones"></canvas></div>
           </div>
           <div class="section-card" style="margin:0;">
-            <h3 style="margin-bottom:20px; font-size:1.1rem; color:var(--text); font-weight:600;">Secciones Más Rentables (Vistas)</h3>
+            <h3 style="margin-bottom:20px; font-size:1.1rem; color:var(--text); font-weight:600;">Categorías más Vistas</h3>
             <div style="position:relative; height:280px; width:80%; margin:0 auto;"><canvas id="chart-views"></canvas></div>
           </div>
         </div>
@@ -123,12 +124,13 @@
         <div class="dashboard-controls" style="justify-content:space-between;">
           <div style="display:flex; gap:12px; align-items:center;">
             <input type="date" id="admin-date-select" style="font-weight:600; border-color:var(--border);">
-            <button id="refresh-btn"><i class="fas fa-sync-alt"></i> Recargar</button>
-            <button id="clear-btn" class="btn-danger"><i class="fas fa-trash"></i> Bloquear/Borrar DÃ­a</button>
+            <button id="refresh-btn"><i class="fas fa-sync-alt"></i> Actualizar</button>
+            <button id="clear-btn" class="btn-danger"><i class="fas fa-trash"></i> Bloquear Día</button>
           </div>
           <div style="display:flex; gap:12px;">
             <button id="view-all-btn" class="btn-warning"><i class="fas fa-clock"></i> Pendientes</button>
             <button id="view-confirmed-btn" class="btn-success"><i class="fas fa-check-circle"></i> Confirmadas</button>
+            <button id="add-manual-res-btn" class="btn-primary"><i class="fas fa-plus"></i> Nueva Reserva</button>
             <button id="export-csv-btn" class="btn-gold"><i class="fas fa-file-export"></i> CSV</button>
           </div>
         </div>
@@ -145,50 +147,50 @@
         </div>
         <div id="no-data-message" class="empty-state" style="display:none; margin-top:24px;">
           <i class="fas fa-calendar-day"></i>
-          <h3>DÃ­a sin reservas confirmadas</h3>
-          <p>Comparte tu enlace de reservas o cÃ³digo QR en tus redes sociales para aumentar tu ocupaciÃ³n.</p>
+          <h3>Día sin reservas confirmadas</h3>
+          <p>Comparte tu enlace de reservas o código QR en tus redes sociales para aumentar tu ocupación.</p>
           <button class="btn-primary" onclick="document.querySelector('[data-tab=\'qr\']').click()"><i class="fas fa-share-alt"></i> Compartir mi QR</button>
         </div>
       </div>
 
-      <!-- â•â• TAB: CARTA â•â• -->
+      <!-- TAB: CARTA -->
       <div id="tab-menu" class="tab-content">
         <div class="dashboard-controls" style="justify-content:space-between;">
           <div style="display:flex; gap:12px; flex:1; max-width:600px;">
             <select id="category-filter" style="min-width:180px; font-weight:500;"></select>
-            <input type="text" id="product-search" placeholder="ðŸ” Buscar plato por nombre..." style="flex-grow:1;">
+            <input type="text" id="product-search" placeholder="🔍 Buscar plato por nombre..." style="flex-grow:1;">
           </div>
           <div style="display:flex; gap:12px;">
-            <button id="import-data-btn" class="btn-warning"><i class="fas fa-file-import"></i> Auto-Importar PDF</button>
+            <button id="import-data-btn" class="btn-warning"><i class="fas fa-file-import"></i> Auto-Importar</button>
             <button id="refresh-products-btn"><i class="fas fa-sync-alt"></i></button>
-            <button id="add-product-btn" class="btn-primary"><i class="fas fa-plus"></i> Crear Plato</button>
+            <button id="add-product-btn" class="btn-primary"><i class="fas fa-plus"></i> Añadir Plato</button>
           </div>
         </div>
         <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:16px;">
-          GestiÃ³n de catÃ¡logo: Mostrando <span id="displayed-products-count" style="color:var(--text);font-weight:700;">0</span> elementos
+          Gestión de catálogo: Mostrando <span id="displayed-products-count" style="color:var(--text);font-weight:700;">0</span> elementos
         </p>
         <div class="table-container">
           <table>
             <thead><tr>
-              <th>Img</th><th>Orden</th><th>Estado</th><th>Nombre del Plato</th><th>SecciÃ³n</th><th>Precio</th><th>Etiquetas Especiales</th><th style="text-align:right;">Opciones</th>
+              <th>Img</th><th>Orden</th><th>Estado</th><th>Nombre del Plato</th><th>Sección</th><th>Precio</th><th>Etiquetas</th><th style="text-align:right;">Opciones</th>
             </tr></thead>
             <tbody id="products-body"></tbody>
           </table>
         </div>
         <div id="no-products-message" class="empty-state" style="display:none; margin-top:24px;">
           <i class="fas fa-utensils"></i>
-          <h3>AÃºn no tienes platos en tu carta</h3>
-          <p>Un menÃº digital con fotos atractivas aumenta las ventas un 25%. Empieza creando tu primer producto.</p>
+          <h3>Aún no tienes platos en tu carta</h3>
+          <p>Un menú digital con fotos atractivas aumenta las ventas un 25%. Empieza creando tu primer producto.</p>
           <button class="btn-primary" onclick="document.getElementById('add-product-btn').click()"><i class="fas fa-plus"></i> Crear Mi Primer Plato</button>
         </div>
       </div>
 
-      <!-- â•â• TAB: HORARIO â•â• -->
+      <!-- TAB: HORARIO -->
       <div id="tab-schedule" class="tab-content">
         <div class="section-card">
           <h2><i class="fas fa-clock"></i> Horario Semanal Automatizado</h2>
           <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;max-width:800px;">
-            Define tus horas de apertura. Nuestro sistema bloquearÃ¡ automÃ¡ticamente las reservas fuera de este horario. Los cambios se guardan y aplican instantÃ¡neamente.
+            Define tus horas de apertura. Nuestro sistema bloqueará automáticamente las reservas fuera de este horario. Los cambios se guardan y aplican instantáneamente.
           </p>
           <div class="schedule-grid" id="weekly-schedule-grid"></div>
           <button id="save-schedule-btn" class="save-btn" style="margin-top:24px;"><i class="fas fa-save"></i> Guardar Configuración Semanal</button>
@@ -205,7 +207,7 @@
               <label>Motivo</label>
               <select id="special-reason-input" style="background:var(--surface);">
                 <option value="Cerrado Excepcional">Cerrado Excepcional</option>
-                <option value="Festivo">DÃ­a Festivo</option>
+                <option value="Festivo">Día Festivo</option>
                 <option value="Vacaciones">Vacaciones</option>
                 <option value="Apertura Especial">Apertura Extraordinaria</option>
               </select>
@@ -214,28 +216,28 @@
             <button id="add-special-open-btn" class="btn-success" style="padding:12px 20px;"><i class="fas fa-lock-open"></i> Forzar Apertura</button>
           </div>
           <div class="table-container">
-            <table><thead><tr><th>Fecha Exacta</th><th>Tipo de ExcepciÃ³n</th><th style="text-align:right;">Eliminar</th></tr></thead>
+            <table><thead><tr><th>Fecha</th><th>Tipo de Excepción</th><th style="text-align:right;">Eliminar</th></tr></thead>
             <tbody id="special-days-body"></tbody></table>
           </div>
         </div>
       </div>
 
-      <!-- â•â• TAB: SECCIONES DE CARTA â•â• -->
+      <!-- TAB: SECCIONES DE CARTA -->
       <div id="tab-categories" class="tab-content">
         <div class="section-card">
           <h2><i class="fas fa-layer-group"></i> Estructura de la Carta</h2>
           <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;max-width:800px;">
-            Organiza las categorÃ­as que ven tus clientes (Ej: Entrantes, Principales, Vinos). 
+            Organiza las categorías que ven tus clientes (Ej: Entrantes, Principales, Vinos). 
           </p>
           <div id="categories-list" style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;"></div>
           <div style="display:flex; gap:16px; flex-wrap:wrap; padding-top:16px; border-top:1px solid var(--border);">
-            <button id="add-category-btn" class="btn-surface" style="border:1px solid var(--border); padding:12px 20px;"><i class="fas fa-plus"></i> Nueva CategorÃ­a Manual</button>
-            <button id="ai-generate-menu-btn" class="btn-primary" style="background:#000; color:#fff; border:none; padding:12px 20px;"><i class="fas fa-magic" style="color:var(--gold);"></i> Generar Plantilla con IA</button>
+            <button id="add-category-btn" class="btn-surface" style="border:1px solid var(--border); padding:12px 20px;"><i class="fas fa-plus"></i> Nueva Categoría</button>
+            <button id="ai-generate-menu-btn" class="btn-primary" style="background:#000; color:#fff; border:none; padding:12px 20px;"><i class="fas fa-magic" style="color:var(--gold);"></i> Generar con IA</button>
           </div>
         </div>
       </div>
 
-      <!-- â•â• TAB: PLANO DE MESAS â•â• -->
+      <!-- TAB: PLANO DE MESAS -->
       <div id="tab-tables" class="tab-content">
         <div class="dashboard-controls" style="justify-content:space-between;">
           <div>
@@ -249,16 +251,16 @@
         </div>
         <div style="margin-bottom:24px;" class="section-card">
           <h3 style="margin-bottom:4px; font-size:1.1rem;"><i class="fas fa-layer-group" style="color:var(--gold);"></i> Salas y Aforos</h3>
-          <p style="font-size:0.88rem; color:var(--text-dim); margin-bottom:20px;">Define cada zona de tu local (SalÃ³n, Terraza, Barra...) y el aforo mÃ¡ximo. Las reservas se bloquean automÃ¡ticamente cuando se alcanza el lÃ­mite de personas.</p>
+          <p style="font-size:0.88rem; color:var(--text-dim); margin-bottom:20px;">Define cada zona de tu local (Salón, Terraza, Barra...) y el aforo máximo. Las reservas se bloquean automáticamente cuando se alcanza el límite.</p>
           
-          <!-- Formulario inline para aÃ±adir zona -->
+          <!-- Formulario inline para añadir zona -->
           <div style="display:flex; gap:12px; align-items:flex-end; background:var(--surface-2); padding:16px; border-radius:10px; margin-bottom:16px; flex-wrap:wrap;">
             <div class="form-group" style="margin:0; flex:1; min-width:150px;">
               <label>Nombre de la Zona</label>
-              <input type="text" id="new-zone-name" placeholder="Ej: Terraza, SalÃ³n, Barra..." style="background:var(--surface);">
+              <input type="text" id="new-zone-name" placeholder="Ej: Terraza, Salón, Barra..." style="background:var(--surface);">
             </div>
             <div class="form-group" style="margin:0; width:140px;">
-              <label>Aforo MÃ¡ximo (pax)</label>
+              <label>Aforo Máximo (pax)</label>
               <input type="number" id="new-zone-capacity" placeholder="30" min="1" style="background:var(--surface);">
             </div>
             <button id="add-zone-btn" class="btn-primary" style="padding:12px 20px; white-space:nowrap; margin-bottom:0;"><i class="fas fa-plus"></i> Añadir Zona</button>
@@ -283,23 +285,23 @@
         </div>
       </div>
 
-      <!-- â•â• TAB: NEGOCIO (PERFIL Y SEGURIDAD) â•â• -->
+      <!-- TAB: NEGOCIO (PERFIL Y SEGURIDAD) -->
       <div id="tab-business" class="tab-content">
         <div class="section-card">
-          <h2><i class="fas fa-id-card"></i> InformaciÃ³n del Negocio</h2>
-          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Esta informaciÃ³n es la que verÃ¡n tus clientes en la carta digital y pÃ¡gina de reservas.</p>
+          <h2><i class="fas fa-id-card"></i> Información del Negocio</h2>
+          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Esta información es la que verán tus clientes en la carta digital y página de reservas.</p>
           
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
             <div class="form-group">
               <label>Nombre del Restaurante</label>
-              <input type="text" id="biz-name" placeholder="Ej: Mi Restaurante Premium" style="background:var(--surface);">
+              <input type="text" id="biz-name" placeholder="Ej: Mi Restaurante" style="background:var(--surface);">
             </div>
             <div class="form-group">
-              <label>Eslogan / Tagline</label>
-              <input type="text" id="biz-tagline" placeholder="Ej: Cocina de Autor y TradiciÃ³n" style="background:var(--surface);">
+              <label>Eslogan / Lema</label>
+              <input type="text" id="biz-tagline" placeholder="Ej: Cocina de Autor" style="background:var(--surface);">
             </div>
             <div class="form-group">
-              <label>DirecciÃ³n</label>
+              <label>Dirección</label>
               <input type="text" id="biz-address" placeholder="Calle Ejemplo, 12" style="background:var(--surface);">
             </div>
             <div class="form-group">
@@ -307,7 +309,7 @@
               <input type="text" id="biz-city" placeholder="Madrid" style="background:var(--surface);">
             </div>
             <div class="form-group">
-              <label>TelÃ©fono de Contacto</label>
+              <label>Teléfono de Contacto</label>
               <input type="text" id="biz-phone" placeholder="600 000 000" style="background:var(--surface);">
             </div>
             <div class="form-group">
@@ -321,38 +323,38 @@
 
         <div class="section-card" style="border-top: 4px solid var(--error);">
           <h2><i class="fas fa-lock"></i> Seguridad y Acceso</h2>
-          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Cambia la contraseña de acceso a este panel de administraciÃ³n.</p>
+          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Cambia la contraseña de acceso a este panel de administración.</p>
           
           <div style="max-width:400px;">
             <div class="form-group">
-              <label>Nueva ContraseÃ±a</label>
+              <label>Nueva Contraseña</label>
               <div style="position:relative;">
-                <input type="password" id="biz-new-password" placeholder="MÃ­nimo 6 caracteres" style="background:var(--surface); padding-right:45px;">
+                <input type="password" id="biz-new-password" placeholder="Mínimo 6 caracteres" style="background:var(--surface); padding-right:45px;">
                 <button type="button" onclick="togglePasswordView('biz-new-password')" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-dim); cursor:pointer;"><i class="fas fa-eye"></i></button>
               </div>
             </div>
-            <button id="save-biz-pass-btn" class="btn-danger" style="margin-top:10px; width:100%; padding:14px;"><i class="fas fa-key"></i> Actualizar ContraseÃ±a</button>
-            <p style="font-size:0.75rem; color:var(--text-dim); margin-top:12px; text-align:center;"><i class="fas fa-info-circle"></i> La contraseña antigua de config.js dejarÃ¡ de funcionar.</p>
+            <button id="save-biz-pass-btn" class="btn-danger" style="margin-top:10px; width:100%; padding:14px;"><i class="fas fa-key"></i> Actualizar Contraseña</button>
+            <p style="font-size:0.75rem; color:var(--text-dim); margin-top:12px; text-align:center;"><i class="fas fa-info-circle"></i> La contraseña antigua dejará de funcionar.</p>
           </div>
         </div>
       </div>
 
-      <!-- â•â• TAB: CONFIGURACIÃ“N â•â• -->
+      <!-- TAB: CONFIGURACIÓN -->
       <div id="tab-config" class="tab-content">
         <div class="section-card">
-          <h2><i class="fas fa-robot"></i> AutomatizaciÃ³n & CRM</h2>
-          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Ahorra horas de gestiÃ³n configurando las respuestas automÃ¡ticas.</p>
+          <h2><i class="fas fa-robot"></i> Automatización y CRM</h2>
+          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">Ahorra tiempo configurando las respuestas automáticas.</p>
           
           <div class="form-group" style="max-width:400px;">
-            <label>Email de RecepciÃ³n de Reservas (Restaurante)</label>
+            <label>Email de Recepción de Reservas</label>
             <input type="email" id="ejs-admin-email" placeholder="reservas@tudominio.com" style="font-size:1rem; padding:12px; background:var(--surface);">
           </div>
           
           <div class="checkbox-group" style="margin: 24px 0; border:1px solid var(--gold-dim); background:var(--surface); max-width:600px;">
             <input type="checkbox" id="auto-confirm-toggle">
             <label for="auto-confirm-toggle">
-              <strong style="display:block; margin-bottom:4px; font-size:1rem; color:var(--text);">ConfirmaciÃ³n Inmediata de Reservas</strong>
-              <span style="font-size:0.85rem; color:var(--text-dim); font-weight:400;">Acepta reservas automÃ¡ticamente sin intervenciÃ³n humana y envÃ­a el email de confirmaciÃ³n al instante.</span>
+              <strong style="display:block; margin-bottom:4px; font-size:1rem; color:var(--text);">Confirmación Inmediata</strong>
+              <span style="font-size:0.85rem; color:var(--text-dim); font-weight:400;">Acepta reservas automáticamente y envía el email de confirmación al instante.</span>
             </label>
           </div>
 
@@ -375,19 +377,19 @@
         </div>
       </div>
 
-      <!-- â•â• TAB: QR â•â• -->
+      <!-- TAB: QR -->
       <div id="tab-qr" class="tab-content">
         <div class="section-card" style="text-align:center; max-width:600px; margin:0 auto;">
-          <h2 style="justify-content:center;"><i class="fas fa-qrcode"></i> Marketing y Accesos QR</h2>
+          <h2 style="justify-content:center;"><i class="fas fa-qrcode"></i> Marketing y QR</h2>
           <p style="color:var(--text-dim); font-size:0.9rem; margin-bottom:32px;">
-            Distribuye cÃ³digos inteligentes por mesa o en el escaparate. El sistema cuenta automÃ¡ticamente los escaneos para medir tus campaÃ±as.
+            Distribuye códigos inteligentes por mesa. El sistema cuenta automáticamente los escaneos para medir tus campañas.
           </p>
           
           <div style="display:flex; justify-content:center; gap:16px; margin-bottom:24px; flex-wrap:wrap; background:var(--surface-2); padding:20px; border-radius:var(--radius-sm);">
             <div class="form-group" style="margin:0; flex:1; min-width:200px; text-align:left;">
-              <label>PÃ¡gina de Aterrizaje</label>
+              <label>Página de Aterrizaje</label>
               <select id="qr-target-select" style="background:var(--surface);">
-                <option value="">MenÃº Interactivo (Inicio)</option>
+                <option value="">Menú Interactivo (Inicio)</option>
                 <option value="reservas.html">Solo Reservas</option>
                 <option value="bebidas.html">Solo Bebidas (Barra)</option>
               </select>
@@ -418,6 +420,44 @@
         </div>
       </div>
 
+      <!-- ── PESTAÑA: INTEGRACIONES ── -->
+      <div id="tab-integrations" class="tab-content">
+        <div class="section-card">
+          <h2><i class="fab fa-google" style="color: #4285F4;"></i> Google Maps (Reserva con Google)</h2>
+          <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:24px;">
+            Sincroniza tu restaurante con Google Maps para recibir reservas directas y que la capacidad se ajuste automáticamente.
+          </p>
+          
+          <div style="background:var(--surface-2); padding:20px; border-radius:12px; border:1px solid var(--border); margin-bottom:24px;">
+            <h3 style="font-size:1.05rem; margin-bottom:12px;"><i class="fas fa-link" style="color:var(--gold);"></i> Opción 1: Enlace de Reserva Directo (Recomendado)</h3>
+            <p style="font-size:0.85rem; line-height:1.6; margin-bottom:16px;">
+              Copia tu enlace de reservas y pégalo en el campo <strong>"Enlace para reservar mesa"</strong> de tu ficha de Google Business Profile. Así, todas las reservas vendrán por aquí y la capacidad estará 100% sincronizada.
+            </p>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <code id="google-res-url" style="flex:1; background:var(--surface); padding:10px; border-radius:6px; border:1px solid var(--border); font-size:0.85rem; color:var(--gold); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">https://gastroexperience.es/reservas.html?ref=google</code>
+              <button onclick="copyToClipboard('google-res-url')" class="btn-surface" style="padding:10px 15px; border:1px solid var(--border);"><i class="fas fa-copy"></i> Copiar</button>
+            </div>
+          </div>
+
+          <div style="background:var(--surface-2); padding:20px; border-radius:12px; border:1px solid var(--border);">
+            <h3 style="font-size:1.05rem; margin-bottom:12px;"><i class="fas fa-calendar-alt" style="color:#EA4335;"></i> Opción 2: Sincronización con Google Calendar</h3>
+            <p style="font-size:0.85rem; line-height:1.6; margin-bottom:16px;">
+              Si recibes reservas que se anotan en Google Calendar, puedes vincularlo aquí. El sistema leerá esos eventos y bloqueará la capacidad necesaria automáticamente.
+            </p>
+            
+            <div class="form-group" style="max-width:500px;">
+              <label>ID de Calendario de Google (Público)</label>
+              <input type="text" id="gcal-id" placeholder="ej: tu_correo@gmail.com" style="background:var(--surface);">
+            </div>
+            
+            <div style="display:flex; gap:12px; margin-top:16px;">
+              <button id="save-gcal-btn" class="btn-primary" style="background:#EA4335;"><i class="fas fa-save"></i> Guardar y Sincronizar</button>
+              <button id="sync-gcal-now" class="btn-surface" style="border:1px solid var(--border);"><i class="fas fa-sync-alt"></i> Sincronizar Ahora</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 </div>
@@ -426,7 +466,7 @@
 <div id="product-modal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h2 id="modal-title">GestiÃ³n de Plato</h2>
+      <h2 id="modal-title">Gestión de Plato</h2>
       <button class="close-modal-btn" id="close-product-modal"><i class="fas fa-times"></i></button>
     </div>
     <form id="product-form">
@@ -444,8 +484,8 @@
           <div class="form-group"><label>Orden de visualización</label><input type="number" id="p-position" placeholder="1-100" min="0"></div>
           
           <div class="checkbox-group" style="margin-bottom:12px; background:var(--success-bg); border-color:rgba(5,150,105,0.2);"><input type="checkbox" id="p-visible" checked><label for="p-visible" style="color:var(--success);">Públicamente Visible en Carta</label></div>
-          <div class="checkbox-group" style="margin-bottom:12px;"><input type="checkbox" id="p-sugerencia"><label for="p-sugerencia">â­ Etiqueta: RecomendaciÃ³n del Chef</label></div>
-          <div class="checkbox-group" style="margin-bottom:12px;"><input type="checkbox" id="p-bestseller"><label for="p-bestseller">ðŸ”¥ Etiqueta: Más Vendido (Bestseller)</label></div>
+          <div class="checkbox-group" style="margin-bottom:12px;"><input type="checkbox" id="p-sugerencia"><label for="p-sugerencia">⭐ Etiqueta: Recomendación del Chef</label></div>
+          <div class="checkbox-group" style="margin-bottom:12px;"><input type="checkbox" id="p-bestseller"><label for="p-bestseller">🔥 Etiqueta: Más Vendido (Bestseller)</label></div>
         </div>
         
         <div>
@@ -468,25 +508,53 @@
   </div>
 </div>
 
-<!-- MODAL: Importar Carta -->
+<!-- MODAL: Reserva Manual -->
+<div id="reservation-modal" class="modal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2>Crear Reserva Manual</h2>
+      <button class="close-modal-btn" id="close-res-modal"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="manual-res-form">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group"><label>Nombre Cliente</label><input type="text" id="m-name" required placeholder="Juan Pérez"></div>
+        <div class="form-group"><label>Teléfono</label><input type="tel" id="m-phone" placeholder="600 000 000"></div>
+        <div class="form-group"><label>Fecha</label><input type="date" id="m-date" required></div>
+        <div class="form-group"><label>Hora</label><input type="time" id="m-time" required></div>
+        <div class="form-group"><label>Personas</label><input type="number" id="m-people" value="2" min="1" required></div>
+        <div class="form-group"><label>Zona</label><select id="m-zone" required></select></div>
+      </div>
+      <div class="form-group" style="margin-top:16px;">
+        <label>Origen de la Reserva</label>
+        <select id="m-source">
+          <option value="phone">Llamada Telefónica</option>
+          <option value="walk-in">Presencial / Puerta</option>
+          <option value="google">Google Maps (Manual)</option>
+          <option value="other">Otro</option>
+        </select>
+      </div>
+      <div style="margin-top:24px;"><button type="submit" class="save-btn"><i class="fas fa-plus"></i> Crear Reserva</button></div>
+    </form>
+  </div>
+</div>
 <div id="import-modal" class="modal">
   <div class="modal-content" style="max-width:540px;">
     <div class="modal-header">
-      <h2>Asistente de ImportaciÃ³n IA</h2>
+      <h2>Asistente de Importación IA</h2>
       <button class="close-modal-btn" id="close-import-modal"><i class="fas fa-times"></i></button>
     </div>
     <div style="margin-bottom:20px; color:var(--text-dim); font-size:0.95rem; line-height:1.5;">
-      Digitaliza tu carta en segundos. Pega el texto de tu menÃº actual (desde PDF, Word o Whatsapp). Nuestro algoritmo separarÃ¡ automÃ¡ticamente los nombres de los precios.
+      Digitaliza tu carta en segundos. Pega el texto de tu menú actual (desde PDF, Word o Whatsapp). Nuestro algoritmo separará automáticamente los nombres de los precios.
     </div>
     <div class="form-group">
       <label>Contenido Bruto</label>
       <textarea id="import-text" rows="10" placeholder="Ejemplo:
-Ensalada CÃ©sar 12.50
-Croquetas de JamÃ³n (6 ud.) 9.00â‚¬
+Ensalada César 12.50
+Croquetas de Jamón (6 ud.) 9.00€
 Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-height:1.6;"></textarea>
     </div>
     <div class="form-group">
-      <label>Destino de la ImportaciÃ³n</label>
+      <label>Destino de la Importación</label>
       <select id="import-category-select"></select>
     </div>
     <div style="margin-top:24px;">
@@ -609,14 +677,14 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
     <div class="chat-header-icon"><i class="fas fa-utensils"></i></div>
     <div class="chat-header-info">
       <h4>GastroAssistant IA</h4>
-      <p>Experto en gestiÃ³n de restaurantes Â· Powered by Gemini</p>
+      <p>Experto en gestión de restaurantes · Powered by Gemini</p>
     </div>
     <button class="chat-close-btn" id="ai-close-btn"><i class="fas fa-times"></i></button>
   </div>
 
   <div id="ai-key-setup">
     <p>Introduce tu <strong>Gemini API Key</strong> gratuita.<br>
-    ObtÃ©n la tuya en <a href="https://ai.google.dev" target="_blank">ai.google.dev</a> â†’ "Get API key" (gratis, 1 minuto).</p>
+    Obtén la tuya en <a href="https://ai.google.dev" target="_blank">ai.google.dev</a> → "Get API key" (gratis, 1 minuto).</p>
     <div class="key-row">
       <input type="password" id="ai-key-input" placeholder="AIzaSy...">
       <button id="ai-save-key-btn"><i class="fas fa-check"></i> Guardar</button>
@@ -624,21 +692,21 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   </div>
 
   <div id="ai-messages">
-    <div class="msg msg-ai">Â¡Hola! ðŸ‘‹ Soy tu <strong>asistente IA de restaurante</strong>. Puedo ayudarte a:<br><br>
-      â€¢ DiseÃ±ar el plano de mesas ideal<br>
-      â€¢ Optimizar tu carta para vender mÃ¡s<br>
-      â€¢ Analizar tus horas pico y ocupaciÃ³n<br>
-      â€¢ Gestionar turnos y horarios<br><br>
-      Â¿Por dÃ³nde empezamos?
+    <div class="msg msg-ai">¡Hola! 👋 Soy tu <strong>asistente IA de restaurante</strong>. Puedo ayudarte a:<br><br>
+      • Diseñar el plano de mesas ideal<br>
+      • Optimizar tu carta para vender más<br>
+      • Analizar tus horas pico y ocupación<br>
+      • Gestionar turnos y horarios<br><br>
+      ¿Por dónde empezamos?
     </div>
     <div class="msg-typing" id="ai-typing"><span></span><span></span><span></span></div>
   </div>
 
   <div class="quick-prompts">
-    <button class="qp" data-q="Â¿CÃ³mo deberÃ­a organizar mis mesas para maximizar el espacio?">ðŸ“ Organizar mesas</button>
-    <button class="qp" data-q="Â¿QuÃ© platos deberÃ­a destacar en mi carta para aumentar el ticket medio?">ðŸ½ï¸ Optimizar carta</button>
-    <button class="qp" data-q="Â¿CuÃ¡l es el horario ideal para un restaurante en EspaÃ±a?">ðŸ• Horario ideal</button>
-    <button class="qp" data-q="Dame consejos para reducir cancelaciones de reservas">ðŸ“‰ Cancelaciones</button>
+    <button class="qp" data-q="¿Cómo debería organizar mis mesas para maximizar el espacio?">📍 Organizar mesas</button>
+    <button class="qp" data-q="¿Qué platos debería destacar en mi carta para aumentar el ticket medio?">🍽️ Optimizar carta</button>
+    <button class="qp" data-q="¿Cuál es el horario ideal para un restaurante en España?">🕔 Horario ideal</button>
+    <button class="qp" data-q="Dame consejos para reducir cancelaciones de reservas">📈 Cancelaciones</button>
   </div>
 
   <div class="chat-input-row">
@@ -674,7 +742,7 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
     geminiKey = k;
     localStorage.setItem('gastro_gemini_key', k);
     checkKey();
-    addMsg('ai', 'Â¡Perfecto! API Key guardada. Ahora dime, Â¿en quÃ© puedo ayudarte con tu restaurante?');
+    addMsg('ai', '¡Perfecto! API Key guardada. Ahora dime, ¿en qué puedo ayudarte con tu restaurante?');
   };
 
   btn.onclick = () => { panel.classList.toggle('open'); if (panel.classList.contains('open')) input.focus(); };
@@ -715,7 +783,7 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
       ? zonesData.map(z => `${z.title} (${z.capacity} pax)`).join(', ')
       : (APP_CONFIG.zones || []).map(z => `${z.title} (${z.capacity} pax)`).join(', ');
 
-    const systemPrompt = `Eres GastroAssistant, un experto consultor de restauraciÃ³n y gestiÃ³n de restaurantes con 20 aÃ±os de experiencia. EstÃ¡s integrado en el panel de administraciÃ³n del restaurante "${APP_CONFIG.barName}" (${APP_CONFIG.barTagline || ''}).
+    const systemPrompt = `Eres GastroAssistant, un experto consultor de restauración y gestión de restaurantes con 20 años de experiencia. Estás integrado en el panel de administración del restaurante "${APP_CONFIG.barName}" (${APP_CONFIG.barTagline || ''}).
 
 Datos actuales del restaurante:
 - Nombre: ${APP_CONFIG.barName}
@@ -751,7 +819,7 @@ Responde siempre en español, de forma concisa (máximo 200 palabras), con conse
         throw new Error(data.error.message);
       }
 
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No pude generar una respuesta. IntÃ©ntalo de nuevo.';
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No pude generar una respuesta. Inténtalo de nuevo.';
       chatHistory.push({ role: 'model', parts: [{ text: reply }] });
       addMsg('ai', reply);
 

@@ -118,6 +118,18 @@ button i { font-size: 0.9rem; }
 .btn-warning { background: var(--warning-bg) !important; color: var(--warning) !important; border-color: rgba(217,119,6,0.2) !important; }
 .btn-info { background: var(--info-bg) !important; color: var(--info) !important; border-color: rgba(37,99,235,0.2) !important; }
 
+.btn-surface { 
+  background: var(--surface) !important; 
+  color: var(--text) !important; 
+  border: 1px solid var(--border) !important; 
+  box-shadow: var(--shadow-sm);
+}
+.btn-surface:hover { 
+  background: var(--surface-2) !important; 
+  border-color: var(--border-gold) !important;
+  transform: translateY(-1px);
+}
+
 /* TABLE */
 .table-container { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; overflow-x: auto; box-shadow: var(--shadow); }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -408,6 +420,7 @@ td { padding: 16px 24px; vertical-align: middle; color: var(--text); }
 .main-wrapper::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); }
 .main-wrapper::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.1); }
 
+.premium-text {
   background: linear-gradient(to right, var(--text), var(--gold));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

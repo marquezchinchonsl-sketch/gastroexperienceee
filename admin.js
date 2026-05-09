@@ -51,8 +51,7 @@ async function checkLogin() {
   if (validPasswords.includes(inputVal)) {
     sessionStorage.setItem('admin_auth','true');
     loginOverlay.classList.add('login-hide');
-    const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
-    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab };
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
     if (map[activeTab]) map[activeTab]();
     checkOnboarding();
   } else {
@@ -65,8 +64,7 @@ document.getElementById('login-btn').onclick = checkLogin;
 pwInput.onkeydown = e => { if(e.key==='Enter') checkLogin(); };
 if (sessionStorage.getItem('admin_auth')==='true') {
   loginOverlay.classList.add('login-hide');
-  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
-  const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab };
+  const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
   if (map[activeTab]) map[activeTab]();
   checkOnboarding();
 }
@@ -90,7 +88,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active-tab');
-    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab };
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
     if (map[tab.dataset.tab]) map[tab.dataset.tab]();
   };
 });
@@ -138,10 +136,10 @@ function updateStats(res) {
   });
 }
 
-function renderTable(res) {
-  const tbody = document.getElementById('reservations-body');
-  const noMsg = document.getElementById('no-data-message');
   const tableContainer = document.querySelector('#tab-reservations .table-container');
+  const thead = tbody.closest('table').querySelector('thead tr');
+  if (thead) thead.innerHTML = '<th>Origen</th><th>Hora</th><th>Fecha</th><th>Cliente</th><th>Pax</th><th>Zona</th><th>Contacto</th><th>Estado</th><th style="text-align:right;">Acciones</th>';
+  
   tbody.innerHTML = '';
   if (res.length === 0) {
     noMsg.style.display = 'block';
@@ -151,9 +149,17 @@ function renderTable(res) {
     tableContainer.style.display = 'block';
   }
   res.forEach(r => {
-    const confirmed = r.status === 'confirmed';
+    const sourceIcons = {
+      'web': '<i class="fas fa-globe" title="Web" style="color:var(--gold);"></i>',
+      'google': '<i class="fab fa-google" title="Google Maps" style="color:#4285F4;"></i>',
+      'phone': '<i class="fas fa-phone-alt" title="Teléfono" style="color:var(--info);"></i>',
+      'walk-in': '<i class="fas fa-walking" title="Presencial" style="color:var(--success);"></i>'
+    };
+    const sourceIcon = sourceIcons[r.source] || '<i class="fas fa-globe" title="Web"></i>';
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td style="text-align:center;">${sourceIcon}</td>
       <td><strong>${r.time}</strong></td>
       <td style="font-size:0.8rem;color:var(--text-dim);">${r.date}</td>
       <td><strong>${r.name}</strong></td>
@@ -234,6 +240,51 @@ async function deleteReservation(id) {
     toast('No se pudo eliminar: ' + err.message, 'error');
   }
 }
+
+// ── RESERVA MANUAL ────────────────────────────────────────
+const resModal = document.getElementById('reservation-modal');
+if (document.getElementById('add-manual-res-btn')) {
+  document.getElementById('add-manual-res-btn').onclick = () => {
+    const sel = document.getElementById('m-zone');
+    sel.innerHTML = '';
+    const zones = (typeof zonesData !== 'undefined' && zonesData.length > 0) ? zonesData : APP_CONFIG.zones;
+    zones.forEach(z => { const o = document.createElement('option'); o.value = z.id; o.textContent = z.title; sel.appendChild(o); });
+    document.getElementById('manual-res-form').reset();
+    document.getElementById('m-date').value = new Date().toISOString().split('T')[0];
+    resModal.classList.add('open');
+  };
+}
+if (document.getElementById('close-res-modal')) {
+  document.getElementById('close-res-modal').onclick = () => resModal.classList.remove('open');
+}
+
+document.getElementById('manual-res-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
+  
+  const payload = {
+    restaurant_id: RID,
+    name: document.getElementById('m-name').value,
+    phone: document.getElementById('m-phone').value,
+    date: document.getElementById('m-date').value,
+    time: document.getElementById('m-time').value,
+    people: parseInt(document.getElementById('m-people').value),
+    zone: document.getElementById('m-zone').value,
+    zonename: document.getElementById('m-zone').options[document.getElementById('m-zone').selectedIndex].text,
+    source: document.getElementById('m-source').value,
+    status: 'confirmed'
+  };
+  
+  const { error } = await db.from('reservations').insert([payload]);
+  if (error) { toast('Error: ' + error.message, 'error'); }
+  else {
+    toast('Reserva manual creada ✓', 'success');
+    resModal.classList.remove('open');
+    loadDashboard();
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus"></i> Crear Reserva';
+};
 
 // Asignación global inmediata
 window.confirmReservation = confirmReservation;
@@ -889,6 +940,7 @@ CREATE TABLE IF NOT EXISTS reservations (
   date DATE, time TEXT, zone TEXT, people INTEGER,
   name TEXT, phone TEXT, email TEXT,
   status TEXT DEFAULT 'pending', zonename TEXT,
+  source TEXT DEFAULT 'web', notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -1322,4 +1374,33 @@ document.getElementById('save-tables-btn').onclick = async () => {
   btn.innerHTML = '<i class="fas fa-save"></i> Guardar Plano';
 };
 
+// ── INTEGRACIONES ──────────────────────────────────────────
+async function loadIntegrations() {
+  const { data } = await db.from('settings').select('*').eq('restaurant_id', RID);
+  const get = k => data?.find(s => s.key === k)?.value;
+  
+  if (document.getElementById('gcal-id')) {
+    document.getElementById('gcal-id').value = get('gcal_id') || '';
+  }
+  
+  // URL de reserva para Google Maps
+  let baseUrl = APP_CONFIG.siteUrl || window.location.origin;
+  if (!baseUrl.endsWith('/')) baseUrl += '/';
+  const resUrl = baseUrl + 'reservas.html?ref=google';
+  if (document.getElementById('google-res-url')) {
+    document.getElementById('google-res-url').textContent = resUrl;
+  }
+}
 
+if (document.getElementById('save-gcal-btn')) {
+  document.getElementById('save-gcal-btn').onclick = async () => {
+    const id = document.getElementById('gcal-id').value.trim();
+    await db.from('settings').upsert({ restaurant_id: RID, key: 'gcal_id', value: id }, { onConflict: 'restaurant_id,key' });
+    toast('Configuración de Google Calendar guardada ✓', 'success');
+  };
+}
+
+window.copyToClipboard = (id) => {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => toast('Enlace copiado al portapapeles', 'success'));
+};
