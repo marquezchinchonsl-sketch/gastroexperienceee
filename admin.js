@@ -45,7 +45,11 @@ async function checkLogin() {
   const inputVal = pwInput.value.trim();
   
   // Primero comprobamos si hay contraseña en BD
-  const { data: dbPass } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'admin_password').single();
+  let dbPass = null;
+  try {
+    const { data } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'admin_password').single();
+    dbPass = data;
+  } catch(e) { console.warn('DB pass fetch error', e); }
   const validPasswords = dbPass ? [dbPass.value] : APP_CONFIG.adminPasswords;
 
   if (validPasswords.includes(inputVal)) {
@@ -138,6 +142,9 @@ function updateStats(res) {
   });
 }
 
+function renderTable(res) {
+  const tbody = document.getElementById('reservations-body');
+  const noMsg = document.getElementById('no-reservations');
   const tableContainer = document.querySelector('#tab-reservations .table-container');
   const thead = tbody.closest('table').querySelector('thead tr');
   if (thead) thead.innerHTML = '<th>Origen</th><th>Hora</th><th>Fecha</th><th>Cliente</th><th>Pax</th><th>Zona</th><th>Contacto</th><th>Estado</th><th style="text-align:right;">Acciones</th>';
@@ -157,7 +164,8 @@ function updateStats(res) {
       'phone': '<i class="fas fa-phone-alt" title="Teléfono" style="color:var(--info);"></i>',
       'walk-in': '<i class="fas fa-walking" title="Presencial" style="color:var(--success);"></i>'
     };
-    const sourceIcon = sourceIcons[r.source] || '<i class="fas fa-globe" title="Web"></i>';
+    const sourceIcon = sourceIcons[r.source] || '<i class="fas fa-globe" title="Web" style="color:var(--gold);"></i>';
+    const confirmed = r.status === 'confirmed';
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
