@@ -51,6 +51,7 @@ async function checkLogin() {
   if (validPasswords.includes(inputVal)) {
     sessionStorage.setItem('admin_auth','true');
     loginOverlay.classList.add('login-hide');
+    const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
     const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
     if (map[activeTab]) map[activeTab]();
     checkOnboarding();
@@ -64,6 +65,7 @@ document.getElementById('login-btn').onclick = checkLogin;
 pwInput.onkeydown = e => { if(e.key==='Enter') checkLogin(); };
 if (sessionStorage.getItem('admin_auth')==='true') {
   loginOverlay.classList.add('login-hide');
+  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
   const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
   if (map[activeTab]) map[activeTab]();
   checkOnboarding();

@@ -665,7 +665,7 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   #ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 </style>
 
-<!-- BotÃ³n flotante -->
+<!-- Botón flotante -->
 <button id="ai-chat-btn" title="Asistente IA para tu restaurante">
   <i class="fas fa-robot"></i>
   <div class="ai-badge">IA</div>
@@ -756,7 +756,7 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   function addMsg(role, text) {
     const div = document.createElement('div');
     div.className = `msg msg-${role}`;
-    // Soporte markdown bÃ¡sico: **bold**, saltos de lÃ­nea
+    // Soporte markdown básico: **bold**, saltos de línea
     div.innerHTML = text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br>');
@@ -828,9 +828,9 @@ Responde siempre en español, de forma concisa (máximo 200 palabras), con conse
         geminiKey = '';
         localStorage.removeItem('gastro_gemini_key');
         checkKey();
-        addMsg('ai', 'âš ï¸ La API Key no es vÃ¡lida. Introduce una nueva clave de [ai.google.dev](https://ai.google.dev).');
+        addMsg('ai', '⚠️ La API Key no es válida. Introduce una nueva clave de [ai.google.dev](https://ai.google.dev).');
       } else {
-        addMsg('ai', `âš ï¸ Error: ${err.message}. Comprueba tu conexiÃ³n y vuelve a intentarlo.`);
+        addMsg('ai', `⚠️ Error: ${err.message}. Comprueba tu conexión y vuelve a intentarlo.`);
       }
     } finally {
       typing.style.display = 'none';
