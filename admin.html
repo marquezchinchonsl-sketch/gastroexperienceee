@@ -127,7 +127,8 @@
             <button id="refresh-btn"><i class="fas fa-sync-alt"></i> Actualizar</button>
             <button id="clear-btn" class="btn-danger"><i class="fas fa-trash"></i> Bloquear Día</button>
           </div>
-          <div style="display:flex; gap:12px;">
+          <div style="display:flex; gap:12px; align-items:center;">
+            <input type="text" id="search-reservations" placeholder="Buscar cliente o tfno..." style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.85rem; width: 200px; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'">
             <button id="view-all-btn" class="btn-warning"><i class="fas fa-clock"></i> Pendientes</button>
             <button id="view-confirmed-btn" class="btn-success"><i class="fas fa-check-circle"></i> Confirmadas</button>
             <button id="add-manual-res-btn" class="btn-primary"><i class="fas fa-plus"></i> Nueva Reserva</button>
@@ -705,7 +706,8 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   <div class="quick-prompts">
     <button class="qp" data-q="¿Cómo debería organizar mis mesas para maximizar el espacio?">📍 Organizar mesas</button>
     <button class="qp" data-q="¿Qué platos debería destacar en mi carta para aumentar el ticket medio?">🍽️ Optimizar carta</button>
-    <button class="qp" data-q="¿Cuál es el horario ideal para un restaurante en España?">🕔 Horario ideal</button>
+    <button class="qp" data-q="Genera 3 ideas de platos de temporada rentables y llamativos">🍳 Generar platos</button>
+    <button class="qp" data-q="Crea una plantilla para responder a clientes que cancelan a última hora">📧 Plantilla cancelación</button>
     <button class="qp" data-q="Dame consejos para reducir cancelaciones de reservas">📈 Cancelaciones</button>
   </div>
 

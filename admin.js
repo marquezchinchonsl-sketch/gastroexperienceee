@@ -73,7 +73,24 @@ if (sessionStorage.getItem('admin_auth')==='true') {
   const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
   if (map[activeTab]) map[activeTab]();
   checkOnboarding();
+  resetSessionTimeout();
 }
+
+// ── Seguridad Ligera: Timeout de sesión ────────────────────
+let sessionTimer;
+function resetSessionTimeout() {
+  clearTimeout(sessionTimer);
+  if (sessionStorage.getItem('admin_auth') === 'true') {
+    sessionTimer = setTimeout(() => {
+      sessionStorage.removeItem('admin_auth');
+      toast('Sesión caducada por inactividad', 'warning');
+      setTimeout(() => window.location.reload(), 1500);
+    }, 15 * 60 * 1000); // 15 min
+  }
+}
+document.addEventListener('mousemove', resetSessionTimeout);
+document.addEventListener('keydown', resetSessionTimeout);
+document.addEventListener('touchstart', resetSessionTimeout);
 
 // ── WebSockets ───────────────────────────────────────────
 db.channel('public:reservations')
@@ -164,6 +181,14 @@ document.getElementById('clear-btn').onclick = async () => {
 document.getElementById('add-manual-res-btn').onclick = () => {
   window.open('reservas.html?ref=walk-in', '_blank');
 };
+
+document.getElementById('search-reservations').addEventListener('input', (e) => {
+  const term = e.target.value.toLowerCase();
+  const rows = document.querySelectorAll('#reservations-body tr');
+  rows.forEach(row => {
+    row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none';
+  });
+});
 
 document.getElementById('export-csv-btn').onclick = async () => {
   const d = dateInput.value;
