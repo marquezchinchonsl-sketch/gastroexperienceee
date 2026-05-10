@@ -101,8 +101,10 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 
 // ── RESERVAS ──────────────────────────────────────────────
 const dateInput = document.getElementById('admin-date-select');
-dateInput.value = new Date().toISOString().split('T')[0];
+dateInput.value = ''; // Por defecto vacío para mostrar todas las pendientes
 dateInput.onchange = loadDashboard;
+
+let resStatusFilter = null; // null, 'pending', 'confirmed'
 
 async function loadDashboard() {
   const btn = document.getElementById('refresh-btn');
@@ -114,12 +116,18 @@ async function loadDashboard() {
     if (tRes.data && tRes.data.value) tablesData = JSON.parse(tRes.data.value);
   }
 
-  let query = db.from('reservations').select('*').eq('restaurant_id', RID).order('time');
+  let query = db.from('reservations').select('*').eq('restaurant_id', RID);
+  
   if (dateInput.value) {
-    query = query.eq('date', dateInput.value);
+    query = query.eq('date', dateInput.value).order('time');
+    if (resStatusFilter) query = query.eq('status', resStatusFilter);
   } else {
-    // Si no hay fecha (modo Pendientes), mostramos todas las pendientes
-    query = query.eq('status', 'pending').order('date');
+    // Si no hay fecha, mostramos desde hoy en adelante (hora local)
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    const today = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+    query = query.gte('date', today).order('date').order('time');
+    if (resStatusFilter) query = query.eq('status', resStatusFilter);
+    else query = query.eq('status', 'pending'); // Por defecto pendientes
   }
   
   const { data } = await query;
@@ -128,6 +136,55 @@ async function loadDashboard() {
   
   btn.innerHTML = orig;
 }
+
+// Botones de filtro de reservas
+document.getElementById('refresh-btn').onclick = loadDashboard;
+
+document.getElementById('view-all-btn').onclick = () => {
+  dateInput.value = '';
+  resStatusFilter = 'pending';
+  loadDashboard();
+};
+
+document.getElementById('view-confirmed-btn').onclick = () => {
+  dateInput.value = '';
+  resStatusFilter = 'confirmed';
+  loadDashboard();
+};
+
+document.getElementById('clear-btn').onclick = async () => {
+  const d = dateInput.value;
+  if (!d) { toast('Selecciona una fecha específica primero', 'error'); return; }
+  if (confirm(`¿Bloquear el día ${d} para no recibir más reservas?`)) {
+    await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: true }, { onConflict: 'restaurant_id,date' });
+    toast(`Día ${d} bloqueado`, 'success');
+  }
+};
+
+document.getElementById('add-manual-res-btn').onclick = () => {
+  window.open('reservas.html?ref=walk-in', '_blank');
+};
+
+document.getElementById('export-csv-btn').onclick = async () => {
+  const d = dateInput.value;
+  let query = db.from('reservations').select('*').eq('restaurant_id', RID).order('time');
+  if (d) query = query.eq('date', d);
+  const { data } = await query;
+  if (!data || !data.length) { toast('No hay datos para exportar', 'info'); return; }
+  
+  const headers = ['Fecha', 'Hora', 'Nombre', 'Telefono', 'Pax', 'Zona', 'Estado'];
+  const rows = data.map(r => [r.date, r.time, `"${r.name}"`, r.phone, r.people, r.zonename||r.zone, r.status]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `reservas_${d||'todas'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
 
 function updateStats(res) {
   document.getElementById('total-count').textContent  = res.length;
@@ -1434,15 +1491,15 @@ document.getElementById('save-tables-btn').onclick = async () => {
   const btn = document.getElementById('save-tables-btn');
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
   
-  const results = await Promise.all([
-    db.from('settings').upsert({ restaurant_id: RID, key: 'tables_map', value: JSON.stringify(tablesData) }),
-    db.from('settings').upsert({ restaurant_id: RID, key: 'zones_config', value: JSON.stringify(zonesData) })
-  ]);
+  const payload = [
+    { restaurant_id: RID, key: 'tables_map', value: JSON.stringify(tablesData) },
+    { restaurant_id: RID, key: 'zones_config', value: JSON.stringify(zonesData) }
+  ];
+  const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
   
-  const errors = results.filter(r => r.error);
-  if (errors.length > 0) {
-    console.error('Error guardando plano:', errors[0].error);
-    toast('Error al guardar: ' + errors[0].error.message, 'error');
+  if (error) {
+    console.error('Error guardando plano:', error);
+    toast('Error al guardar: ' + error.message, 'error');
   } else {
     toast('Configuración de Zonas y Mesas guardada', 'success');
   }

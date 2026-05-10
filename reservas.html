@@ -341,7 +341,8 @@
       }
     }
 
-    dateInput.value = new Date().toISOString().split('T')[0];
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    dateInput.value = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
     dateInput.onchange = window.renderSlots;
     peopleSelect.onchange = window.renderSlots;
 
