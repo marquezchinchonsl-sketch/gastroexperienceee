@@ -124,7 +124,7 @@ dateInput.onchange = loadDashboard;
 let resStatusFilter = null; // null, 'pending', 'confirmed'
 
 async function loadDashboard() {
-  const btn = document.getElementById('refresh-dashboard-btn');
+  const btn = document.getElementById('refresh-btn');
   let orig = '';
   if (btn) {
     orig = btn.innerHTML;
@@ -150,15 +150,21 @@ async function loadDashboard() {
     else query = query.eq('status', 'pending'); // Por defecto pendientes
   }
   
-  const { data } = await query;
-  updateStats(data || []);
-  renderTable(data || []);
-  
-  if (btn) btn.innerHTML = orig;
+  try {
+    const { data, error } = await query;
+    if (error) throw error;
+    updateStats(data || []);
+    renderTable(data || []);
+  } catch (err) {
+    console.error('Error cargando reservas:', err);
+    toast('Error al cargar reservas. Reintenta.', 'error');
+  } finally {
+    if (btn) btn.innerHTML = orig;
+  }
 }
 
 // Botones de filtro de reservas
-document.getElementById('refresh-dashboard-btn').onclick = loadDashboard;
+document.getElementById('refresh-btn').onclick = loadDashboard;
 
 document.getElementById('view-all-btn').onclick = () => {
   dateInput.value = '';
@@ -176,8 +182,14 @@ document.getElementById('clear-btn').onclick = async () => {
   const d = dateInput.value;
   if (!d) { toast('Selecciona una fecha específica primero', 'error'); return; }
   if (confirm(`¿Bloquear el día ${d} para no recibir más reservas?`)) {
-    await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: true }, { onConflict: 'restaurant_id,date' });
-    toast(`Día ${d} bloqueado`, 'success');
+    try {
+      const { error } = await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: true }, { onConflict: 'restaurant_id,date' });
+      if (error) throw error;
+      toast(`Día ${d} bloqueado`, 'success');
+    } catch(err) {
+      console.error('Error bloqueando día:', err);
+      toast('Error al bloquear día: ' + err.message, 'error');
+    }
   }
 };
 
@@ -626,13 +638,19 @@ document.getElementById('product-form').onsubmit = async e => {
     image_url:     imageUrl,
     allergens,
   };
-  if (id) await db.from('menu_items').update(payload).eq('id', id);
-  else    await db.from('menu_items').insert([payload]);
-  productModal.classList.remove('open');
-  loadProducts();
-  toast(id ? 'Producto actualizado ✓' : 'Producto añadido ✓','success');
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Producto';
-  checkOnboarding();
+  try {
+    if (id) await db.from('menu_items').update(payload).eq('id', id);
+    else    await db.from('menu_items').insert([payload]);
+    productModal.classList.remove('open');
+    loadProducts();
+    toast(id ? 'Producto actualizado ✓' : 'Producto añadido ✓','success');
+    checkOnboarding();
+  } catch (err) {
+    console.error('Error guardando producto:', err);
+    toast('Error al guardar producto', 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Producto';
+  }
 };
 
 window.deleteProduct = async id => {
@@ -676,14 +694,22 @@ document.getElementById('process-import-btn').onclick = async () => {
   });
   
   if (payloads.length > 0) {
-    await db.from('menu_items').insert(payloads);
-    toast(`${payloads.length} platos importados ✓`, 'success');
-    loadProducts();
-    if (typeof checkOnboarding === 'function') checkOnboarding();
+    try {
+      const { error } = await db.from('menu_items').insert(payloads);
+      if (error) throw error;
+      toast(`${payloads.length} platos importados ✓`, 'success');
+      loadProducts();
+      if (typeof checkOnboarding === 'function') checkOnboarding();
+    } catch(err) {
+      toast('Error al importar: ' + err.message, 'error');
+    } finally {
+      document.getElementById('import-modal').classList.remove('open');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Extraer y Crear Platos';
+    }
+  } else {
+    document.getElementById('import-modal').classList.remove('open');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Extraer y Crear Platos';
   }
-  
-  document.getElementById('import-modal').classList.remove('open');
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Extraer y Crear Platos';
 };
 // ── HORARIO SEMANAL (editor completo por día) ─────────────
 const DAYS = [
@@ -792,16 +818,17 @@ document.getElementById('save-schedule-btn').onclick = async () => {
       to2:   document.getElementById(`to2-${day.key}`)?.value   || '',
     };
   });
-  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'weekly_schedule', value: JSON.stringify(schedule) }, { onConflict: 'restaurant_id,key' });
-  
-  if (error) {
-    console.error('Error guardando horario:', error);
-    toast('Error al guardar: ' + error.message, 'error');
-  } else {
+  try {
+    const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'weekly_schedule', value: JSON.stringify(schedule) }, { onConflict: 'restaurant_id,key' });
+    if (error) throw error;
     toast('Horario semanal guardado ✓', 'success');
     checkOnboarding();
+  } catch(err) {
+    console.error('Error guardando horario:', err);
+    toast('Error al guardar: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Horario Semanal';
   }
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Horario Semanal';
 };
 
 async function loadSpecialDays() {
@@ -987,18 +1014,17 @@ document.getElementById('save-biz-info-btn').onclick = async () => {
     { restaurant_id: RID, key: 'biz_instagram', value: document.getElementById('biz-instagram').value },
   ];
 
-  const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
-
-  if (error) {
-    toast('Error al guardar: ' + error.message, 'error');
-  } else {
-    // Actualizar UI admin local
+  try {
+    const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
+    if (error) throw error;
     document.getElementById('admin-bar-label').textContent = document.getElementById('biz-name').value;
     APP_CONFIG.barName = document.getElementById('biz-name').value;
     toast('Información del negocio actualizada ✓', 'success');
+  } catch(err) {
+    toast('Error al guardar: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios';
   }
-  
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios';
 };
 
 document.getElementById('save-biz-pass-btn').onclick = async () => {
@@ -1010,15 +1036,16 @@ document.getElementById('save-biz-pass-btn').onclick = async () => {
   const btn = document.getElementById('save-biz-pass-btn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
 
-  const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'admin_password', value: pass }, { onConflict: 'restaurant_id,key' });
-
-  if (error) {
-    toast('Error al cambiar contraseña: ' + error.message, 'error');
-  } else {
+  try {
+    const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'admin_password', value: pass }, { onConflict: 'restaurant_id,key' });
+    if (error) throw error;
     toast('Contraseña actualizada con éxito ✓', 'success');
     document.getElementById('biz-new-password').value = '';
+  } catch(err) {
+    toast('Error al cambiar contraseña: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Actualizar Contraseña';
   }
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Actualizar Contraseña';
 };
 
 window.togglePasswordView = (id) => {
@@ -1057,9 +1084,15 @@ if(document.getElementById('save-limits-btn')) {
     const btn = document.getElementById('save-limits-btn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
     const val = document.getElementById('cfg-limit-pax').value;
-    await db.from('settings').upsert({ restaurant_id: RID, key: 'limit_pax', value: val }, { onConflict: 'restaurant_id,key' });
-    toast('Límite guardado ✓','success');
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Límite';
+    try {
+      const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'limit_pax', value: val }, { onConflict: 'restaurant_id,key' });
+      if (error) throw error;
+      toast('Límite guardado ✓','success');
+    } catch(err) {
+      toast('Error al guardar límite: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Límite';
+    }
   };
 }
 
@@ -1076,14 +1109,15 @@ document.getElementById('save-ejs-btn').onclick = async () => {
   const autoConf = document.getElementById('auto-confirm-toggle').checked;
   payload.push({ restaurant_id: RID, key: 'auto_confirm', value: autoConf ? 'true' : 'false' });
 
-  const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
-  
-  if (error) {
-    toast('Error al guardar: ' + error.message, 'error');
-  } else {
+  try {
+    const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
+    if (error) throw error;
     toast('Preferencias guardadas ✓','success');
+  } catch(err) {
+    toast('Error al guardar: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Preferencias';
   }
-  btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Preferencias';
 };
 
 document.getElementById('init-db-btn').onclick = () => {
@@ -1538,15 +1572,16 @@ document.getElementById('save-tables-btn').onclick = async () => {
     { restaurant_id: RID, key: 'tables_map', value: JSON.stringify(tablesData) },
     { restaurant_id: RID, key: 'zones_config', value: JSON.stringify(zonesData) }
   ];
-  const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
-  
-  if (error) {
-    console.error('Error guardando plano:', error);
-    toast('Error al guardar: ' + error.message, 'error');
-  } else {
+  try {
+    const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
+    if (error) throw error;
     toast('Configuración de Zonas y Mesas guardada', 'success');
+  } catch(err) {
+    console.error('Error guardando plano:', err);
+    toast('Error al guardar: ' + err.message, 'error');
+  } finally {
+    btn.innerHTML = '<i class="fas fa-save"></i> Guardar Plano';
   }
-  btn.innerHTML = '<i class="fas fa-save"></i> Guardar Plano';
 };
 
 // ── INTEGRACIONES ──────────────────────────────────────────
