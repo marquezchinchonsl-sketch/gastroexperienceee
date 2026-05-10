@@ -124,9 +124,12 @@ dateInput.onchange = loadDashboard;
 let resStatusFilter = null; // null, 'pending', 'confirmed'
 
 async function loadDashboard() {
-  const btn = document.getElementById('refresh-btn');
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  const btn = document.getElementById('refresh-dashboard-btn');
+  let orig = '';
+  if (btn) {
+    orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  }
 
   if (!tablesData || tablesData.length === 0) {
     const tRes = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').single();
@@ -151,11 +154,11 @@ async function loadDashboard() {
   updateStats(data || []);
   renderTable(data || []);
   
-  btn.innerHTML = orig;
+  if (btn) btn.innerHTML = orig;
 }
 
 // Botones de filtro de reservas
-document.getElementById('refresh-btn').onclick = loadDashboard;
+document.getElementById('refresh-dashboard-btn').onclick = loadDashboard;
 
 document.getElementById('view-all-btn').onclick = () => {
   dateInput.value = '';

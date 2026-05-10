@@ -358,21 +358,20 @@ td { padding: 16px 24px; vertical-align: middle; color: var(--text); }
   .admin-nav { 
     position: fixed; bottom: 0; left: 0; width: 100%; height: 64px; 
     background: var(--surface); border-top: 1px solid var(--border); 
-    padding: 0 10px; flex-direction: row; justify-content: space-around; 
+    padding: 0 10px; flex-direction: row; justify-content: flex-start; 
     align-items: center; z-index: 2000; box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
-    overflow: visible; gap: 0;
+    overflow-x: auto; overflow-y: hidden; gap: 4px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  
   .nav-tab { 
-    flex-direction: column; padding: 8px 4px; gap: 4px; font-size: 0.65rem; 
-    text-align: center; border-radius: 8px; flex: 1; align-items: center;
-    color: var(--text-muted);
+    flex-direction: column; padding: 8px 10px; gap: 4px; font-size: 0.65rem; 
+    text-align: center; border-radius: 8px; flex: 0 0 auto; min-width: 60px;
+    align-items: center; color: var(--text-muted);
   }
   .nav-tab i { font-size: 1.2rem; width: auto; margin: 0; }
   .nav-tab.active { background: transparent; color: var(--gold); }
-  
-  /* Ocultar pestañas menos importantes en nav inferior móvil para evitar saturación */
-  .nav-tab[data-tab="tables"], .nav-tab[data-tab="categories"], .nav-tab[data-tab="qr"] { display: none; }
-  /* En su lugar, podríamos tener un botón "Más" */
 
   .main-wrapper { height: calc(100vh - 60px - 64px); } /* Menos header y bottom nav */
   .topbar { padding: 14px 20px; box-shadow: var(--shadow-sm); }
@@ -387,9 +386,9 @@ td { padding: 16px 24px; vertical-align: middle; color: var(--text); }
   
   .table-container { 
     margin: 0 -20px; width: calc(100% + 40px); border-radius: 0; border-left: none; border-right: none; 
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch; overflow-x: auto;
   }
-  table { min-width: 800px; } /* Forzar scroll horizontal para claridad */
+  table { min-width: 700px; } /* Forzar scroll horizontal para claridad */
 
   /* Forms en móvil */
   .modal-content { padding: 24px 20px; border-radius: 16px; }
