@@ -245,8 +245,11 @@
 
         loader.remove();
         const globalLimit = parseInt(capLimit?.value) || 0;
-        const days = ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'];
-        const dayKey = days[new Date(dateVal).getDay()];
+        const days = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+        const daysLabels = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+        const dayIdx = new Date(dateVal).getDay();
+        const dayKey = days[dayIdx];
+        const dayLabel = daysLabels[dayIdx];
 
         if (specialDay && specialDay.is_closed) {
           showClosed('<i class="fas fa-calendar-times"></i> Cerrado por festivo o evento especial.');
@@ -255,7 +258,7 @@
 
         const daySchedule = schedule[dayKey];
         if (!daySchedule || daySchedule.open === false) {
-          showClosed(`<i class="fas fa-moon"></i> Cerramos los ${dayKey}s.`);
+          showClosed(`<i class="fas fa-moon"></i> Cerramos los ${dayLabel}s.`);
           return;
         }
 

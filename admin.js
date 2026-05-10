@@ -298,12 +298,23 @@ function renderTable(res) {
   tbody.querySelectorAll('.confirm-res-btn').forEach(btn => {
     btn.onclick = () => {
       const { id, email, name, date, time, people, zone } = btn.dataset;
-      confirmReservation(id, email, name, date, time, people, zone);
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Confirmando...'; 
+      btn.disabled = true;
+      confirmReservation(id, email, name, date, time, people, zone).finally(() => {
+        btn.innerHTML = '<i class="fas fa-check"></i> Confirmar';
+        btn.disabled = false;
+      });
     };
   });
   tbody.querySelectorAll('.delete-btn').forEach(btn => {
     btn.onclick = () => {
-      deleteReservation(btn.dataset.id);
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      btn.disabled = true;
+      deleteReservation(btn.dataset.id).finally(() => {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+      });
     };
   });
 }

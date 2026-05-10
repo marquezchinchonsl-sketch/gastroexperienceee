@@ -126,9 +126,9 @@
         const bizName = get('biz_name');
         if (bizName) {
           APP_CONFIG.barName = bizName;
-          document.title = bizName + ' Â· Carta';
+          document.title = bizName + ' · Carta';
           document.getElementById('footer-brand').textContent = bizName;
-          document.getElementById('footer-copy').textContent = `© ${new Date().getFullYear()} ${bizName} Â· Todos los derechos reservados`;
+          document.getElementById('footer-copy').textContent = `© ${new Date().getFullYear()} ${bizName} · Todos los derechos reservados`;
           document.getElementById('hero-logo').alt = bizName;
         }
 
@@ -141,7 +141,7 @@
         const bizAddr = get('biz_address');
         const bizCity = get('biz_city');
         if (bizAddr || bizCity) {
-          const addr = [bizAddr || APP_CONFIG.barAddress, bizCity || APP_CONFIG.barCity].filter(Boolean).join(' Â· ');
+          const addr = [bizAddr || APP_CONFIG.barAddress, bizCity || APP_CONFIG.barCity].filter(Boolean).join(' · ');
           document.getElementById('hero-address').textContent = addr;
         }
 
@@ -171,6 +171,16 @@
             strip.appendChild(a);
             strip.style.display = 'flex';
           }
+        }
+
+        const bizCategories = get('menu_categories');
+        if (bizCategories) {
+          try { 
+            const parsed = JSON.parse(bizCategories); 
+            if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+              APP_CONFIG.menuCategories = parsed;
+            }
+          } catch(e) { console.warn('Error parseando menu_categories', e); }
         }
         console.log('%c✓ Configuración dinámica cargada desde Supabase', 'color: #059669; font-weight: bold;');
       } catch (e) {
