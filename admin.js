@@ -246,18 +246,18 @@ function updateStats(res) {
 
 function renderTable(res) {
   const tbody = document.getElementById('reservations-body');
-  const noMsg = document.getElementById('no-reservations');
+  const noMsg = document.getElementById('no-data-message');
   const tableContainer = document.querySelector('#tab-reservations .table-container');
   const thead = tbody.closest('table').querySelector('thead tr');
   if (thead) thead.innerHTML = '<th>Origen</th><th>Hora</th><th>Fecha</th><th>Cliente</th><th>Pax</th><th>Zona</th><th>Mesa</th><th>Contacto</th><th>Estado</th><th style="text-align:right;">Acciones</th>';
   
   tbody.innerHTML = '';
   if (res.length === 0) {
-    noMsg.style.display = 'block';
-    tableContainer.style.display = 'none';
+    if(noMsg) noMsg.style.display = 'block';
+    if(tableContainer) tableContainer.style.display = 'none';
   } else {
-    noMsg.style.display = 'none';
-    tableContainer.style.display = 'block';
+    if(noMsg) noMsg.style.display = 'none';
+    if(tableContainer) tableContainer.style.display = 'block';
   }
   res.forEach(r => {
     const sourceIcons = {
