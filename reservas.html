@@ -119,6 +119,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
   <script src="config.js"></script>
   <script>
     const RID   = APP_CONFIG.restaurantId;
@@ -154,6 +155,13 @@
           APP_CONFIG.barTagline = bizTagline;
           document.getElementById('res-bar-type').textContent = bizTagline;
         }
+        
+        // Cargar config de email
+        APP_CONFIG.emailjsAdminEmail = get('ejs_admin_email') || APP_CONFIG.emailjsAdminEmail;
+        APP_CONFIG.emailjsPublicKey = get('ejs_public_key');
+        APP_CONFIG.emailjsServiceId = get('ejs_service_id');
+        APP_CONFIG.emailjsTemplateAdmin = get('ejs_template_admin');
+        APP_CONFIG.emailjsTemplateClient = get('ejs_template_client');
       } catch (e) { console.warn('Error config dinámica:', e); }
     }
     loadDynamicConfig();
@@ -177,13 +185,13 @@
         try { return JSON.parse(data.value); } catch(e) {}
       }
       return {
-        Lunes:     { open: false },
-        Martes:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
-        Miercoles: { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
-        Jueves:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
-        Viernes:   { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
-        Sabado:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
-        Domingo:   { open: true, from: "12:00", to: "18:00" }
+        lunes:     { open: false },
+        martes:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
+        miercoles: { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
+        jueves:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:00" },
+        viernes:   { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
+        sabado:    { open: true, from: "12:00", to: "16:00", from2: "19:00", to2: "23:59" },
+        domingo:   { open: true, from: "12:00", to: "18:00" }
       };
     }
 
@@ -240,14 +248,15 @@
           getSpecialDay(dateVal),
           getWeeklySchedule(),
           db.from('reservations').select('time, people, zone').eq('date', dateVal).eq('restaurant_id', RID).neq('status', 'cancelled'),
-          db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'global_capacity_limit').single()
+          db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'limit_pax').single()
         ]);
 
         loader.remove();
         const globalLimit = parseInt(capLimit?.value) || 0;
         const days = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
         const daysLabels = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-        const dayIdx = new Date(dateVal).getDay();
+        const [y, m, d] = dateVal.split('-');
+        const dayIdx = new Date(y, m - 1, d).getDay();
         const dayKey = days[dayIdx];
         const dayLabel = daysLabels[dayIdx];
 
@@ -327,21 +336,30 @@
     }
 
     async function sendEmail(res, status) {
-      const svc = APP_CONFIG.emailjsServiceId || 'service_default';
-      const get = k => {
-        const s = document.querySelector('script[src="config.js"]');
-        return localStorage.getItem('ejs_' + k); 
-      };
-      const tplAdmin = 'template_admin'; 
-      if (tplAdmin && APP_CONFIG.emailjsAdminEmail) {
-        try {
+      const pub = APP_CONFIG.emailjsPublicKey;
+      const svc = APP_CONFIG.emailjsServiceId;
+      const tplAdmin = APP_CONFIG.emailjsTemplateAdmin;
+      const tplClient = APP_CONFIG.emailjsTemplateClient;
+      
+      if (!pub || !svc) return;
+      
+      try {
+        emailjs.init(pub);
+        if (tplAdmin && APP_CONFIG.emailjsAdminEmail) {
           await emailjs.send(svc, tplAdmin, {
             to_email: APP_CONFIG.emailjsAdminEmail, user_name: res.name, user_phone: res.phone, user_email: res.email,
             res_date: res.date, res_time: res.time, res_people: res.people, res_zone: res.zoneName,
             bar_name: APP_CONFIG.barName,
           });
-        } catch(e) { console.warn('Email admin falló:', e); }
-      }
+        }
+        if (tplClient && status === 'confirmed') {
+          await emailjs.send(svc, tplClient, {
+            to_name: res.name, to_email: res.email, client_email: res.email,
+            reservation_date: res.date, reservation_time: res.time,
+            bar_name: APP_CONFIG.barName
+          });
+        }
+      } catch(e) { console.warn('EmailJS error:', e); }
     }
 
     const tzOffset = (new Date()).getTimezoneOffset() * 60000;

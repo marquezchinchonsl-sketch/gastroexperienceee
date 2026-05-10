@@ -804,7 +804,8 @@ document.getElementById('save-schedule-btn').onclick = async () => {
 async function loadSpecialDays() {
   const { data } = await db.from('special_days').select('*').eq('restaurant_id', RID).order('date');
   const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
-  const reasons = rData && rData.value ? JSON.parse(rData.value) : {};
+  let reasons = {};
+  try { if (rData?.value) reasons = JSON.parse(rData.value); } catch(e){}
   const tbody = document.getElementById('special-days-body');
   tbody.innerHTML = '';
   if (!data || !data.length) {
@@ -830,7 +831,8 @@ async function setSpecialDay(closed) {
   await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed }, { onConflict: 'restaurant_id,date' });
   
   const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
-  const reasons = rData && rData.value ? JSON.parse(rData.value) : {};
+  let reasons = {};
+  try { if (rData?.value) reasons = JSON.parse(rData.value); } catch(e){}
   reasons[d] = reason;
   await db.from('settings').upsert({ restaurant_id: RID, key: 'special_reasons', value: JSON.stringify(reasons) }, { onConflict: 'restaurant_id,key' });
 
@@ -1285,8 +1287,10 @@ async function loadTablesMap() {
     db.from('reservations').select('notes').eq('date', selectedDate).eq('restaurant_id', RID)
   ]);
   
-  tablesData = tablesRes.data?.value ? JSON.parse(tablesRes.data.value) : [];
-  zonesData = zonesRes.data?.value ? JSON.parse(zonesRes.data.value) : APP_CONFIG.zones;
+  tablesData = [];
+  try { if (tablesRes.data?.value) tablesData = JSON.parse(tablesRes.data.value); } catch(e){}
+  zonesData = APP_CONFIG.zones;
+  try { if (zonesRes.data?.value) zonesData = JSON.parse(zonesRes.data.value); } catch(e){}
   
   const occupiedTables = (resRes.data || []).filter(r => r.notes && r.notes.startsWith('TABLE:')).map(r => parseInt(r.notes.split(':')[1]));
   
