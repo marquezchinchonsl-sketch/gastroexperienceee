@@ -200,8 +200,7 @@
       }
       cats.forEach((cat, i) => {
         const a = document.createElement('a');
-        const page = cat.page || cat.id;
-        a.href = page.endsWith('.html') ? page : `${page}.html`;
+        a.href = `carta.html?cat=${cat.id}&title=${encodeURIComponent(cat.label)}`;
         a.className = 'category-card';
         a.style.setProperty('--i', i);
         a.setAttribute('aria-label', `Ver ${cat.label}`);

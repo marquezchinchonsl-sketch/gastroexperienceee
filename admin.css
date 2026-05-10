@@ -131,8 +131,8 @@ button i { font-size: 0.9rem; }
 }
 
 /* TABLE */
-.table-container { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; overflow-x: auto; box-shadow: var(--shadow); }
-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.table-container { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; overflow-x: auto; box-shadow: var(--shadow); -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
 thead tr { background: var(--surface-2); border-bottom: 1px solid var(--border); }
 thead th { padding: 16px 24px; text-align: left; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); }
 tbody tr { border-bottom: 1px solid var(--border); transition: var(--transition); }

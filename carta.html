@@ -47,11 +47,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="demo-data.js"></script>
   <script>
     // -- CONFIGURACIÓN DE ESTA PÁGINA --------------------------
-    const PAGE_CATEGORY = 'carta';
-    const PAGE_TITLE    = 'Carta';
+    const urlParams = new URLSearchParams(window.location.search);
+    const PAGE_CATEGORY = urlParams.get('cat') || 'carta';
+    const PAGE_TITLE    = urlParams.get('title') || 'Carta';
     const PAGE_SUBTITLE = '';
     const PAGE_ICON     = 'fa-utensils';
     // ----------------------------------------------------------
@@ -77,7 +77,6 @@
 
     async function loadProducts() {
       let items = [];
-      let fromDB = false;
 
       try {
         const { data, error } = await db
@@ -89,16 +88,9 @@
 
         if (!error && data && data.length > 0) {
           items  = data;
-          fromDB = true;
         }
-      } catch(e) {}
-
-      // Fallback: demo-data local
-      if (!fromDB) {
-        const demo = (typeof DEMO_PRODUCTS !== 'undefined') ? DEMO_PRODUCTS[PAGE_CATEGORY] : null;
-        if (demo && demo.length) {
-          items = demo.map((d, i) => ({ ...d, id: i, position: i, visible: true, category: PAGE_CATEGORY, restaurant_id: RID }));
-        }
+      } catch(e) {
+        console.error('Error loading products', e);
       }
 
       loader.remove();

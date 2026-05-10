@@ -109,6 +109,11 @@ async function loadDashboard() {
   const orig = btn.innerHTML;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
+  if (!tablesData || tablesData.length === 0) {
+    const tRes = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').single();
+    if (tRes.data && tRes.data.value) tablesData = JSON.parse(tRes.data.value);
+  }
+
   let query = db.from('reservations').select('*').eq('restaurant_id', RID).order('time');
   if (dateInput.value) {
     query = query.eq('date', dateInput.value);
@@ -147,7 +152,7 @@ function renderTable(res) {
   const noMsg = document.getElementById('no-reservations');
   const tableContainer = document.querySelector('#tab-reservations .table-container');
   const thead = tbody.closest('table').querySelector('thead tr');
-  if (thead) thead.innerHTML = '<th>Origen</th><th>Hora</th><th>Fecha</th><th>Cliente</th><th>Pax</th><th>Zona</th><th>Contacto</th><th>Estado</th><th style="text-align:right;">Acciones</th>';
+  if (thead) thead.innerHTML = '<th>Origen</th><th>Hora</th><th>Fecha</th><th>Cliente</th><th>Pax</th><th>Zona</th><th>Mesa</th><th>Contacto</th><th>Estado</th><th style="text-align:right;">Acciones</th>';
   
   tbody.innerHTML = '';
   if (res.length === 0) {
@@ -167,6 +172,17 @@ function renderTable(res) {
     const sourceIcon = sourceIcons[r.source] || '<i class="fas fa-globe" title="Web" style="color:var(--gold);"></i>';
     const confirmed = r.status === 'confirmed';
 
+    let tableOptions = '<option value="">Sin asignar</option>';
+    if (tablesData && tablesData.length > 0) {
+      const zoneTables = tablesData.filter(t => t.zone === r.zone);
+      zoneTables.forEach((t) => {
+        const tIndex = tablesData.indexOf(t);
+        const isSelected = r.notes === `TABLE:${tIndex}` ? 'selected' : '';
+        tableOptions += `<option value="${tIndex}" ${isSelected}>${t.name} (${t.capacity} pax)</option>`;
+      });
+    }
+    const tableSelectHtml = `<select class="table-assign-select" data-id="${r.id}" style="padding:4px; border-radius:4px; border:1px solid var(--border); font-size:0.8rem; background:var(--surface);">${tableOptions}</select>`;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="text-align:center;">${sourceIcon}</td>
@@ -175,22 +191,32 @@ function renderTable(res) {
       <td><strong>${r.name}</strong></td>
       <td>${r.people || 0}</td>
       <td><span class="zone-tag ${r.zone==='terrace'?'zone-terrace':''}">${r.zonename||r.zone}</span></td>
+      <td>${tableSelectHtml}</td>
       <td><div style="font-size:0.85rem;">${r.phone}</div><div style="font-size:0.72rem;color:var(--text-dim);">${r.email}</div></td>
       <td><span class="status-badge ${r.status}">${confirmed?'Confirmada':'Pendiente'}</span></td>
       <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end;">
         ${confirmed
           ? '<button class="action-btn notified" disabled><i class="fas fa-check"></i> Confirmado</button>'
-          : `<button class="action-btn confirm-res-btn" data-id="${r.id}" data-email="${r.email}" data-name="${r.name}" data-date="${r.date}" data-time="${r.time}"><i class="fas fa-check"></i> Confirmar</button>`}
+          : `<button class="action-btn confirm-res-btn" data-id="${r.id}" data-email="${r.email}" data-name="${r.name}" data-date="${r.date}" data-time="${r.time}" data-people="${r.people}" data-zone="${r.zone}"><i class="fas fa-check"></i> Confirmar</button>`}
         <button class="action-btn delete-btn" data-id="${r.id}"><i class="fas fa-trash"></i></button>
       </td>`;
     tbody.appendChild(tr);
   });
 
   // Delegación de eventos para botones
+  tbody.querySelectorAll('.table-assign-select').forEach(sel => {
+    sel.onchange = async () => {
+      const val = sel.value;
+      const resId = sel.dataset.id;
+      const notesVal = val !== "" ? `TABLE:${val}` : null;
+      await db.from('reservations').update({ notes: notesVal }).eq('id', resId);
+      toast('Mesa asignada ✓', 'success');
+    };
+  });
   tbody.querySelectorAll('.confirm-res-btn').forEach(btn => {
     btn.onclick = () => {
-      const { id, email, name, date, time } = btn.dataset;
-      confirmReservation(id, email, name, date, time);
+      const { id, email, name, date, time, people, zone } = btn.dataset;
+      confirmReservation(id, email, name, date, time, people, zone);
     };
   });
   tbody.querySelectorAll('.delete-btn').forEach(btn => {
@@ -200,15 +226,33 @@ function renderTable(res) {
   });
 }
 
-async function confirmReservation(id, email, name, date, time) {
+async function confirmReservation(id, email, name, date, time, people, zone) {
   if (!confirm(`¿Confirmar reserva de ${name}?`)) return;
   
   try {
-    // 1. Actualizar estado en DB primero
-    const { error: updErr } = await db.from('reservations').update({ status:'confirmed' }).eq('id', id).eq('restaurant_id', RID);
+    // Buscar asignación de mesa automática
+    let notesVal = null;
+    if (tablesData && tablesData.length > 0) {
+      // Fetch all reservations for that day to find occupied tables
+      const { data: dayRes } = await db.from('reservations').select('notes, time').eq('date', date).eq('restaurant_id', RID);
+      const occupiedAtTime = (dayRes || []).filter(r => r.time === time && r.notes && r.notes.startsWith('TABLE:')).map(r => parseInt(r.notes.split(':')[1]));
+      
+      const pax = parseInt(people || 0);
+      const possibleTables = tablesData.map((t, idx) => ({...t, idx})).filter(t => t.zone === zone && !occupiedAtTime.includes(t.idx) && t.capacity >= pax).sort((a,b) => a.capacity - b.capacity);
+      
+      if (possibleTables.length > 0) {
+        notesVal = `TABLE:${possibleTables[0].idx}`;
+      }
+    }
+
+    // 1. Actualizar estado en DB primero y notas (mesa)
+    const updatePayload = { status: 'confirmed' };
+    if (notesVal) updatePayload.notes = notesVal;
+
+    const { error: updErr } = await db.from('reservations').update(updatePayload).eq('id', id).eq('restaurant_id', RID);
     if (updErr) throw updErr;
     
-    toast('Reserva confirmada ✓', 'success');
+    toast(notesVal ? 'Reserva confirmada y mesa auto-asignada ✓' : 'Reserva confirmada ✓', 'success');
     loadDashboard(); // Refrescar UI inmediatamente
 
     // 2. Intentar enviar Email (opcional si falla)
@@ -837,23 +881,25 @@ document.getElementById('save-biz-info-btn').onclick = async () => {
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
   const payload = [
-    { key: 'biz_name',      value: document.getElementById('biz-name').value },
-    { key: 'biz_tagline',   value: document.getElementById('biz-tagline').value },
-    { key: 'biz_address',   value: document.getElementById('biz-address').value },
-    { key: 'biz_city',      value: document.getElementById('biz-city').value },
-    { key: 'biz_phone',     value: document.getElementById('biz-phone').value },
-    { key: 'biz_instagram', value: document.getElementById('biz-instagram').value },
+    { restaurant_id: RID, key: 'biz_name',      value: document.getElementById('biz-name').value },
+    { restaurant_id: RID, key: 'biz_tagline',   value: document.getElementById('biz-tagline').value },
+    { restaurant_id: RID, key: 'biz_address',   value: document.getElementById('biz-address').value },
+    { restaurant_id: RID, key: 'biz_city',      value: document.getElementById('biz-city').value },
+    { restaurant_id: RID, key: 'biz_phone',     value: document.getElementById('biz-phone').value },
+    { restaurant_id: RID, key: 'biz_instagram', value: document.getElementById('biz-instagram').value },
   ];
 
-  for (const item of payload) {
-    await db.from('settings').upsert({ restaurant_id: RID, key: item.key, value: item.value }, { onConflict: 'restaurant_id,key' });
-  }
+  const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
 
-  // Actualizar UI admin local
-  document.getElementById('admin-bar-label').textContent = document.getElementById('biz-name').value;
-  APP_CONFIG.barName = document.getElementById('biz-name').value;
+  if (error) {
+    toast('Error al guardar: ' + error.message, 'error');
+  } else {
+    // Actualizar UI admin local
+    document.getElementById('admin-bar-label').textContent = document.getElementById('biz-name').value;
+    APP_CONFIG.barName = document.getElementById('biz-name').value;
+    toast('Información del negocio actualizada ✓', 'success');
+  }
   
-  toast('Información del negocio actualizada ✓', 'success');
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios';
 };
 
@@ -923,13 +969,22 @@ document.getElementById('save-ejs-btn').onclick = async () => {
   const btn = document.getElementById('save-ejs-btn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
   const map = { ejs_admin_email:'ejs-admin-email', ejs_public_key:'ejs-public-key', ejs_service_id:'ejs-service-id', ejs_template_admin:'ejs-template-admin', ejs_template_client:'ejs-template-client' };
+  
+  const payload = [];
   for (const [key, elId] of Object.entries(map)) {
-    const value = document.getElementById(elId).value;
-    await db.from('settings').upsert({ restaurant_id: RID, key, value }, { onConflict: 'restaurant_id,key' });
+    payload.push({ restaurant_id: RID, key, value: document.getElementById(elId).value });
   }
+  
   const autoConf = document.getElementById('auto-confirm-toggle').checked;
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'auto_confirm', value: autoConf ? 'true' : 'false' }, { onConflict: 'restaurant_id,key' });
-  toast('Preferencias guardadas ✓','success');
+  payload.push({ restaurant_id: RID, key: 'auto_confirm', value: autoConf ? 'true' : 'false' });
+
+  const { error } = await db.from('settings').upsert(payload, { onConflict: 'restaurant_id,key' });
+  
+  if (error) {
+    toast('Error al guardar: ' + error.message, 'error');
+  } else {
+    toast('Preferencias guardadas ✓','success');
+  }
   btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Preferencias';
 };
 
@@ -1130,17 +1185,21 @@ let draggingTable = null;
 let dragOffset = { x: 0, y: 0 };
 
 async function loadTablesMap() {
-  const [tablesRes, zonesRes] = await Promise.all([
+  const selectedDate = document.getElementById('admin-date-select').value || new Date().toISOString().split('T')[0];
+  const [tablesRes, zonesRes, resRes] = await Promise.all([
     db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').single(),
-    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'zones_config').single()
+    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'zones_config').single(),
+    db.from('reservations').select('notes').eq('date', selectedDate).eq('restaurant_id', RID)
   ]);
   
   tablesData = tablesRes.data?.value ? JSON.parse(tablesRes.data.value) : [];
   zonesData = zonesRes.data?.value ? JSON.parse(zonesRes.data.value) : APP_CONFIG.zones;
   
+  const occupiedTables = (resRes.data || []).filter(r => r.notes && r.notes.startsWith('TABLE:')).map(r => parseInt(r.notes.split(':')[1]));
+  
   renderZonesList();
   renderTablesList();
-  renderTablesMap();
+  renderTablesMap(occupiedTables);
 }
 
 function renderZonesList() {
@@ -1246,7 +1305,7 @@ function renderTablesList() {
   });
 }
 
-function renderTablesMap() {
+function renderTablesMap(occupiedTables = []) {
   const mapArea = document.getElementById('tables-map-area');
   mapArea.innerHTML = '';
   
@@ -1258,6 +1317,12 @@ function renderTablesMap() {
     const el = document.createElement('div');
     const width = t.shape === 'round' ? 60 : 70;
     const height = t.shape === 'round' ? 60 : 70; // made them squares or circles for better aesthetics
+    
+    const isOccupied = occupiedTables.includes(idx);
+    const borderColor = isOccupied ? 'var(--error)' : 'var(--success)';
+    const bgColor = isOccupied ? 'var(--error-bg)' : 'var(--success-bg)';
+    const textColor = isOccupied ? 'var(--error)' : 'var(--success)';
+
     el.style.cssText = `
       position: absolute; 
       left: ${t.x || 10}%; 
@@ -1265,8 +1330,8 @@ function renderTablesMap() {
       width: ${width}px; 
       height: ${height}px; 
       border-radius: ${t.shape === 'round' ? '50%' : '8px'}; 
-      background: var(--surface); 
-      border: 2px solid var(--text); 
+      background: ${bgColor}; 
+      border: 2px solid ${borderColor}; 
       display: flex; 
       flex-direction: column; 
       justify-content: center; 
@@ -1278,7 +1343,7 @@ function renderTablesMap() {
     `;
     
     // Add internal grid or seats visual? Let's just keep it simple and elegant.
-    el.innerHTML = `<span style="font-weight:700; font-size:0.9rem; color:var(--text);">${t.name}</span><span style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${t.capacity} pax</span>`;
+    el.innerHTML = `<span style="font-weight:700; font-size:0.9rem; color:${textColor};">${t.name}</span><span style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${t.capacity} pax</span>`;
     
     // Drag Events
     el.onmousedown = e => {
@@ -1334,7 +1399,7 @@ document.addEventListener('mousemove', e => {
 
 document.addEventListener('mouseup', () => {
   if (draggingTable !== null) {
-    renderTablesMap(); // re-render cleanly
+    loadTablesMap(); // re-render cleanly with occupied data
     draggingTable = null;
   }
 });
@@ -1354,14 +1419,14 @@ document.getElementById('add-table-btn').onclick = () => {
   // Default to center
   tablesData.push({ name, capacity: parseInt(capacity)||4, shape, zone: matchedZone.id, x: 45, y: 45 });
   renderTablesList();
-  renderTablesMap();
+  loadTablesMap();
 };
 
 window.removeTable = (idx) => {
   if(confirm('¿Eliminar esta mesa definitivamente del plano?')) {
     tablesData.splice(idx, 1);
     renderTablesList();
-    renderTablesMap();
+    loadTablesMap();
   }
 };
 
