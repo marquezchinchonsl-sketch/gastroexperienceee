@@ -75,7 +75,7 @@ if (typeof window !== 'undefined') {
     if (path === 'index' || path === '') path = 'index'; // Normalizar inicio
     if (!window.location.pathname.includes('admin') && typeof supabase !== 'undefined') {
       const db = supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey);
-      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'stats_views').single()
+      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'stats_views').maybeSingle()
         .then(({data}) => {
           try {
             let views = data?.value ? JSON.parse(data.value) : {};

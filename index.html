@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=1024">
   <title>Carta Digital</title>
   <meta name="description" content="Carta digital y reservas online">
   <meta name="theme-color" content="#1a1208">
@@ -187,7 +187,7 @@
         console.warn('Error cargando config dinámica:', e);
       }
     }
-    loadDynamicConfig();
+    // loadDynamicConfig se llama encadenado con loadCategories al final del script
 
     // â”€â”€ Cargar categorías (BD o config) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     async function loadCategories() {
@@ -195,7 +195,7 @@
       try {
         const { data } = await db.from('settings')
           .select('value').eq('key','menu_categories')
-          .eq('restaurant_id', APP_CONFIG.restaurantId).single();
+          .eq('restaurant_id', APP_CONFIG.restaurantId).maybeSingle();
         if (data?.value) cats = JSON.parse(data.value);
       } catch(e) {}
       renderCategories(cats);
@@ -260,14 +260,15 @@
     // â”€â”€ Tracking QR Scans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('ref') === 'qr') {
-      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'qr_scans').single()
+      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'qr_scans').maybeSingle()
         .then(({ data }) => {
           let count = parseInt(data?.value || 0) + 1;
           db.from('settings').upsert({ restaurant_id: APP_CONFIG.restaurantId, key: 'qr_scans', value: count.toString() }).then();
         });
     }
 
-    loadCategories();
+    // ── Iniciar: primero config dinámica, LUEGO categorías ──
+    loadDynamicConfig().then(() => loadCategories());
   </script>
 </body>
 </html>

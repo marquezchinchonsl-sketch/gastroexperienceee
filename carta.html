@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=1024">
   <title>Carta</title>
   <meta name="theme-color" content="#f8f6f2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -79,12 +79,16 @@
       let items = [];
 
       try {
-        const { data, error } = await db
-          .from('menu_items').select('*')
-          .eq('category', PAGE_CATEGORY)
+        let query = db.from('menu_items').select('*')
           .eq('restaurant_id', RID)
           .eq('visible', true)
           .order('position', { ascending: true });
+          
+        if (urlParams.has('cat')) {
+          query = query.eq('category', PAGE_CATEGORY);
+        }
+
+        const { data, error } = await query;
 
         if (!error && data && data.length > 0) {
           items  = data;
@@ -105,10 +109,18 @@
     }
 
     function renderItems(items) {
-      // Agrupar por subcategoría
+      const showAll = !urlParams.has('cat');
+      const catsMap = {};
+      (APP_CONFIG.menuCategories || []).forEach(c => catsMap[c.id] = c.label);
+
       const groups = {};
       items.forEach(item => {
-        const key = item.subcategory || '';
+        let key = '';
+        if (showAll) {
+          key = catsMap[item.category] || item.category || 'Otros';
+        } else {
+          key = item.subcategory || '';
+        }
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
       });

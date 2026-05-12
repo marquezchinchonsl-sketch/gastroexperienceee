@@ -47,7 +47,7 @@ async function checkLogin() {
   // Primero comprobamos si hay contraseña en BD
   let dbPass = null;
   try {
-    const { data } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'admin_password').single();
+    const { data } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'admin_password').maybeSingle();
     dbPass = data;
   } catch(e) { console.warn('DB pass fetch error', e); }
   const validPasswords = dbPass ? [dbPass.value] : APP_CONFIG.adminPasswords;
@@ -78,7 +78,11 @@ if (sessionStorage.getItem('admin_auth')==='true') {
 
 // ── Seguridad Ligera: Timeout de sesión ────────────────────
 let sessionTimer;
+let lastSessionReset = 0;
 function resetSessionTimeout() {
+  const now = Date.now();
+  if (now - lastSessionReset < 2000) return;
+  lastSessionReset = now;
   clearTimeout(sessionTimer);
   if (sessionStorage.getItem('admin_auth') === 'true') {
     sessionTimer = setTimeout(() => {
@@ -132,7 +136,7 @@ async function loadDashboard() {
   }
 
   if (!tablesData || tablesData.length === 0) {
-    const tRes = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').single();
+    const tRes = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').maybeSingle();
     if (tRes.data && tRes.data.value) tablesData = JSON.parse(tRes.data.value);
   }
 
@@ -369,17 +373,21 @@ async function confirmReservation(id, email, name, date, time, people, zone) {
     const pub = get('ejs_public_key'), svc = get('ejs_service_id'), tpl = get('ejs_template_client');
     
     if (pub && svc && tpl) {
-      try {
-        emailjs.init(pub);
-        await emailjs.send(svc, tpl, { 
-          to_name: name, to_email: email, client_email: email, 
-          reservation_date: date, reservation_time: time, 
-          bar_name: APP_CONFIG.barName 
-        });
-        toast('Email de confirmación enviado', 'success');
-      } catch(e) { 
-        console.warn('EmailJS error:', e);
-        toast('Reserva confirmada, pero falló el envío del email', 'warning');
+      if (email && email.includes('@')) {
+        try {
+          emailjs.init(pub);
+          await emailjs.send(svc, tpl, { 
+            to_name: name, to_email: email, client_email: email, 
+            reservation_date: date, reservation_time: time, 
+            bar_name: APP_CONFIG.barName 
+          });
+          toast('Email de confirmación enviado', 'success');
+        } catch(e) { 
+          console.warn('EmailJS error:', e);
+          toast('Reserva confirmada, pero falló el envío del email', 'warning');
+        }
+      } else {
+        toast('Confirmada (Cliente sin email)', 'info');
       }
     }
   } catch(err) {
@@ -452,51 +460,7 @@ document.getElementById('manual-res-form').onsubmit = async (e) => {
 window.confirmReservation = confirmReservation;
 window.deleteReservation = deleteReservation;
 
-document.getElementById('refresh-btn').onclick = () => { loadDashboard(); toast('Actualizado','info'); };
-
-document.getElementById('view-all-btn').onclick = () => {
-  dateInput.value = '';
-  loadDashboard();
-};
-
-document.getElementById('view-confirmed-btn').onclick = async () => {
-  // Para ver confirmadas específicamente, usamos una consulta directa
-  const { data } = await db.from('reservations').select('*').eq('status','confirmed').eq('restaurant_id', RID).order('date').order('time');
-  dateInput.value = '';
-  updateStats(data||[]);
-  renderTable(data||[]);
-};
-
-document.getElementById('clear-btn').onclick = async () => {
-  const d = dateInput.value;
-  if (!d) { toast('Selecciona una fecha primero','error'); return; }
-  if (!confirm(`¿Borrar TODAS las reservas del día ${d}?`)) return;
-  if (!confirm('Esta acción es IRREVERSIBLE. ¿Continuar?')) return;
-  await db.from('reservations').delete().eq('date', d).eq('restaurant_id', RID);
-  loadDashboard();
-  toast('Reservas del día eliminadas','info');
-};
-
-// ── Exportar CSV ───────────────────────────────────────────
-document.getElementById('export-csv-btn').onclick = async () => {
-  const { data } = await db.from('reservations').select('*').eq('restaurant_id', RID).order('date').order('time');
-  if (!data || !data.length) { toast('No hay reservas para exportar','info'); return; }
-  const headers = ['Fecha','Hora','Nombre','Teléfono','Email','Personas','Zona','Estado'];
-  const rows = data.map(r => [r.date,r.time,r.name,r.phone,r.email,r.people,r.zonename||r.zone,r.status]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${v||''}"`).join(',')).join('\n');
-  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a'); a.href = url; a.download = `reservas_${APP_CONFIG.restaurantId}_${new Date().toISOString().split('T')[0]}.csv`;
-  a.click(); URL.revokeObjectURL(url);
-  toast('CSV exportado ✓','success');
-};
-
-// ── Realtime ──────────────────────────────────────────────
-db.channel('realtime-res').on('postgres_changes',{ event:'INSERT', schema:'public', table:'reservations' }, payload => {
-  if (payload.new.restaurant_id !== RID) return;
-  toast(`¡Nueva reserva! ${payload.new.name} · ${payload.new.time}`,'success');
-  if (dateInput.value === payload.new.date || !dateInput.value) loadDashboard();
-}).subscribe();
+// (Handlers ya definidos arriba — no duplicar)
 
 // ── PRODUCTOS ─────────────────────────────────────────────
 let allProducts = [];
@@ -631,7 +595,7 @@ document.getElementById('product-form').onsubmit = async e => {
     name:          document.getElementById('p-name').value,
     info:          document.getElementById('p-info').value,
     category:      document.getElementById('p-category').value,
-    price:         parseFloat(document.getElementById('p-price').value),
+    price:         parseFloat(document.getElementById('p-price').value) || 0,
     position:      parseInt(document.getElementById('p-position').value)||1000,
     visible:       document.getElementById('p-visible').checked,
     is_sugerencia: document.getElementById('p-sugerencia').checked,
@@ -723,7 +687,7 @@ const DAYS = [
 ];
 
 async function loadSchedule() {
-  const { data } = await db.from('settings').select('*').eq('key', 'weekly_schedule').eq('restaurant_id', RID).single();
+  const { data } = await db.from('settings').select('*').eq('key', 'weekly_schedule').eq('restaurant_id', RID).maybeSingle();
   let schedule = {};
   if (data?.value) { try { schedule = JSON.parse(data.value); } catch(e){} }
   renderScheduleGrid(schedule);
@@ -833,7 +797,7 @@ document.getElementById('save-schedule-btn').onclick = async () => {
 
 async function loadSpecialDays() {
   const { data } = await db.from('special_days').select('*').eq('restaurant_id', RID).order('date');
-  const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
+  const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').maybeSingle();
   let reasons = {};
   try { if (rData?.value) reasons = JSON.parse(rData.value); } catch(e){}
   const tbody = document.getElementById('special-days-body');
@@ -860,7 +824,7 @@ async function setSpecialDay(closed) {
   if (!d) { toast('Selecciona una fecha','error'); return; }
   await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed }, { onConflict: 'restaurant_id,date' });
   
-  const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').single();
+  const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').maybeSingle();
   let reasons = {};
   try { if (rData?.value) reasons = JSON.parse(rData.value); } catch(e){}
   reasons[d] = reason;
@@ -880,7 +844,7 @@ window.deleteSpecialDay = async date => {
 
 // ── SECCIONES / CATEGORÍAS ────────────────────────────────
 async function loadCategories() {
-  const { data } = await db.from('settings').select('*').eq('key','menu_categories').eq('restaurant_id', RID).single();
+  const { data } = await db.from('settings').select('*').eq('key','menu_categories').eq('restaurant_id', RID).maybeSingle();
   let cats = APP_CONFIG.menuCategories;
   if (data?.value) { try { cats = JSON.parse(data.value); } catch(e){} }
   renderCategoriesList(cats);
@@ -970,8 +934,32 @@ async function saveCategories() {
   const list = document.getElementById('categories-list');
   const cats = list._cats;
   if (!cats) return;
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'menu_categories', value: JSON.stringify(cats) }, { onConflict: 'restaurant_id,key' });
-  toast('Secciones guardadas ✓', 'success');
+  try {
+    const { error } = await db.from('settings').upsert({ restaurant_id: RID, key: 'menu_categories', value: JSON.stringify(cats) }, { onConflict: 'restaurant_id,key' });
+    if (error) throw error;
+    // Actualizar config en memoria
+    APP_CONFIG.menuCategories = cats;
+    // Refrescar todos los selects de categorías
+    const selects = ['category-filter', 'p-category', 'import-category-select'];
+    selects.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const currentVal = el.value;
+      el.innerHTML = '';
+      cats.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = c.label;
+        el.appendChild(o);
+      });
+      if (currentVal && Array.from(el.options).some(o => o.value === currentVal)) {
+        el.value = currentVal;
+      }
+    });
+    toast('Secciones guardadas ✓', 'success');
+  } catch(err) {
+    toast('Error al guardar: ' + err.message, 'error');
+  }
 }
 // Botón guardar categorías (añadido dinámicamente)
 setTimeout(() => {
@@ -1176,7 +1164,7 @@ async function loadQR() {
   QRCode.toCanvas(canvas, url, { width: 240, margin: 2, color: { dark: color, light:'#ffffff' } });
 
   try {
-    const { data: qData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'qr_scans').single();
+    const { data: qData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'qr_scans').maybeSingle();
     const scans = qData?.value || 0;
     if(document.getElementById('qr-scan-count')) document.getElementById('qr-scan-count').innerHTML = `<i class="fas fa-chart-line"></i> Escaneos Totales: ${scans}`;
   } catch(e) {}
@@ -1210,74 +1198,94 @@ document.getElementById('print-qr-btn').onclick = () => {
 let chartRes, chartZones, chartViews;
 async function loadMetrics() {
   const btn = document.getElementById('refresh-metrics-btn');
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+  if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
   
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  const dateStr = d.toISOString().split('T')[0];
-  
-  const [resData, viewsData] = await Promise.all([
-    db.from('reservations').select('*').eq('restaurant_id', RID).gte('date', dateStr),
-    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'stats_views').single()
-  ]);
-  
-  const res = resData.data || [];
-  const views = viewsData.data?.value ? JSON.parse(viewsData.data.value) : {};
-  
-  document.getElementById('metric-total-res').textContent = res.length;
-  document.getElementById('metric-total-pax').textContent = res.reduce((s,r) => s + parseInt(r.people||0), 0);
-  
-  const hours = {};
-  res.forEach(r => { if(r.status==='confirmed') hours[r.time] = (hours[r.time]||0) + 1; });
-  const peak = Object.keys(hours).sort((a,b) => hours[b] - hours[a])[0];
-  document.getElementById('metric-peak-hour').textContent = peak || '-';
-  
-  const last7Days = [];
-  for(let i=6; i>=0; i--) {
-    let dt = new Date(); dt.setDate(dt.getDate() - i);
-    last7Days.push(dt.toISOString().split('T')[0]);
-  }
-  
-  const resByDay = last7Days.map(date => res.filter(r => r.date === date).length);
-  
-  if (chartRes) chartRes.destroy();
-  if (window.Chart) {
-    chartRes = new Chart(document.getElementById('chart-reservations'), {
-      type: 'bar',
-      data: {
-        labels: last7Days.map(x => x.substring(5).split('-').reverse().join('/')),
-        datasets: [{ label: 'Reservas', data: resByDay, backgroundColor: '#C5A866', borderRadius: 4 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
+  try {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    const dateStr = d.toISOString().split('T')[0];
     
-    const zoneCounts = {};
-    APP_CONFIG.zones.forEach(z => zoneCounts[z.id] = 0);
-    res.forEach(r => { if(zoneCounts[r.zone] !== undefined) zoneCounts[r.zone]++; });
+    const [resData, viewsData] = await Promise.all([
+      db.from('reservations').select('*').eq('restaurant_id', APP_CONFIG.restaurantId).gte('date', dateStr),
+      db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'stats_views').maybeSingle()
+    ]);
     
-    if (chartZones) chartZones.destroy();
-    chartZones = new Chart(document.getElementById('chart-zones'), {
-      type: 'doughnut',
-      data: {
-        labels: APP_CONFIG.zones.map(z => z.title),
-        datasets: [{ data: APP_CONFIG.zones.map(z => zoneCounts[z.id]), backgroundColor: ['#C5A866', '#1A1A1A', '#e5e7eb'] }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
+    const res = resData.data || [];
+    let views = {};
+    if (viewsData.data && viewsData.data.value) {
+      try { views = JSON.parse(viewsData.data.value); } catch(e){}
+    }
+    
+    const elRes = document.getElementById('metric-total-res');
+    if (elRes) elRes.textContent = res.length;
+    
+    const elPax = document.getElementById('metric-total-pax');
+    if (elPax) elPax.textContent = res.reduce((s,r) => s + parseInt(r.people||0), 0);
+    
+    const hours = {};
+    res.forEach(r => { if(r.status==='confirmed') hours[r.time] = (hours[r.time]||0) + 1; });
+    const peak = Object.keys(hours).sort((a,b) => hours[b] - hours[a])[0];
+    const elPeak = document.getElementById('metric-peak-hour');
+    if (elPeak) elPeak.textContent = peak || '-';
+    
+    const last7Days = [];
+    for(let i=6; i>=0; i--) {
+      let dt = new Date(); dt.setDate(dt.getDate() - i);
+      last7Days.push(dt.toISOString().split('T')[0]);
+    }
+    const resByDay = last7Days.map(date => res.filter(r => r.date === date).length);
+    
+    if (typeof Chart !== 'undefined') {
+      if (chartRes) { chartRes.destroy(); chartRes = null; }
+      const cvRes = document.getElementById('chart-reservations');
+      if (cvRes) {
+        chartRes = new Chart(cvRes, {
+          type: 'bar',
+          data: {
+            labels: last7Days.map(x => x.substring(5).split('-').reverse().join('/')),
+            datasets: [{ label: 'Reservas', data: resByDay, backgroundColor: '#C5A866', borderRadius: 4 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      }
+      
+      const zoneCounts = {};
+      APP_CONFIG.zones.forEach(z => zoneCounts[z.id] = 0);
+      res.forEach(r => { if(zoneCounts[r.zone] !== undefined) zoneCounts[r.zone]++; });
+      
+      if (chartZones) { chartZones.destroy(); chartZones = null; }
+      const cvZones = document.getElementById('chart-zones');
+      if (cvZones) {
+        chartZones = new Chart(cvZones, {
+          type: 'doughnut',
+          data: {
+            labels: APP_CONFIG.zones.map(z => z.title),
+            datasets: [{ data: APP_CONFIG.zones.map(z => zoneCounts[z.id]), backgroundColor: ['#C5A866', '#1A1A1A', '#e5e7eb'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      }
 
-    if (chartViews) chartViews.destroy();
-    const viewLabels = Object.keys(views).filter(k => k !== 'index.html').sort((a,b) => views[b] - views[a]).slice(0,5);
-    const viewData = viewLabels.map(k => views[k]);
-    chartViews = new Chart(document.getElementById('chart-views'), {
-      type: 'pie',
-      data: {
-        labels: viewLabels.map(l => l.replace('.html','').toUpperCase()),
-        datasets: [{ data: viewData, backgroundColor: ['#C5A866', '#1A1A1A', '#e5e7eb', '#888888', '#333333'] }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
+      if (chartViews) { chartViews.destroy(); chartViews = null; }
+      const viewLabels = Object.keys(views).filter(k => k !== 'index.html').sort((a,b) => views[b] - views[a]).slice(0,5);
+      const viewData = viewLabels.map(k => views[k]);
+      const cvViews = document.getElementById('chart-views');
+      if (cvViews) {
+        chartViews = new Chart(cvViews, {
+          type: 'pie',
+          data: {
+            labels: viewLabels.map(l => l.replace('.html','').toUpperCase()),
+            datasets: [{ data: viewData, backgroundColor: ['#C5A866', '#1A1A1A', '#e5e7eb', '#888888', '#333333'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      }
+    }
+  } catch(e) {
+    console.error('Metrics Error:', e);
+  } finally {
+    if (btn) btn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar Datos';
   }
-  btn.innerHTML = '<i class="fas fa-sync-alt"></i> Actualizar Datos';
 }
 document.getElementById('refresh-metrics-btn').onclick = loadMetrics;
 
@@ -1285,7 +1293,7 @@ document.getElementById('refresh-metrics-btn').onclick = loadMetrics;
 async function checkOnboarding() {
   try {
     const { data: prods } = await db.from('menu_items').select('id').eq('restaurant_id', RID).limit(1);
-    const { data: sched } = await db.from('settings').select('id').eq('restaurant_id', RID).eq('key', 'weekly_schedule').single();
+    const { data: sched } = await db.from('settings').select('id').eq('restaurant_id', RID).eq('key', 'weekly_schedule').maybeSingle();
     
     const hasPlato = prods && prods.length > 0;
     const hasHorario = !!sched;
@@ -1319,8 +1327,8 @@ let dragOffset = { x: 0, y: 0 };
 async function loadTablesMap() {
   const selectedDate = document.getElementById('admin-date-select').value || new Date().toISOString().split('T')[0];
   const [tablesRes, zonesRes, resRes] = await Promise.all([
-    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').single(),
-    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'zones_config').single(),
+    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'tables_map').maybeSingle(),
+    db.from('settings').select('value').eq('restaurant_id', RID).eq('key', 'zones_config').maybeSingle(),
     db.from('reservations').select('notes').eq('date', selectedDate).eq('restaurant_id', RID)
   ]);
   

@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GastroAdmin | SaaS Premium</title>
+  <meta name="viewport" content="width=1024">
+  <title>Admin - GastroExperience</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -564,12 +564,7 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-<script src="config.js"></script>
-<script src="admin.js"></script>
+<!-- scripts loaded once at bottom -->
 
 <!-- â•â• ASISTENTE IA FLOTANTE â•â• -->
 <style>
@@ -678,16 +673,16 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
     <div class="chat-header-icon"><i class="fas fa-utensils"></i></div>
     <div class="chat-header-info">
       <h4>GastroAssistant IA</h4>
-      <p>Experto en gestión de restaurantes · Powered by Gemini</p>
+      <p>Experto en gestión de restaurantes · Powered by OpenAI</p>
     </div>
     <button class="chat-close-btn" id="ai-close-btn"><i class="fas fa-times"></i></button>
   </div>
 
   <div id="ai-key-setup">
-    <p>Introduce tu <strong>Gemini API Key</strong> gratuita.<br>
-    Obtén la tuya en <a href="https://ai.google.dev" target="_blank">ai.google.dev</a> → "Get API key" (gratis, 1 minuto).</p>
+      <p>Introduce tu <strong>OpenAI API Key</strong>.<br>
+    Obtén la tuya en <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a> → API Keys.</p>
     <div class="key-row">
-      <input type="password" id="ai-key-input" placeholder="AIzaSy...">
+      <input type="password" id="ai-key-input" placeholder="sk-...">
       <button id="ai-save-key-btn"><i class="fas fa-check"></i> Guardar</button>
     </div>
   </div>
@@ -731,18 +726,18 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   const saveKey  = document.getElementById('ai-save-key-btn');
 
   let chatHistory = [];
-  let geminiKey = localStorage.getItem('gastro_gemini_key') || '';
+  let openaiKey = localStorage.getItem('gastro_openai_key') || '';
 
   function checkKey() {
-    keySetup.style.display = geminiKey ? 'none' : 'block';
+    keySetup.style.display = openaiKey ? 'none' : 'block';
   }
   checkKey();
 
   saveKey.onclick = () => {
     const k = keyInput.value.trim();
-    if (!k.startsWith('AIza')) { keyInput.style.borderColor = 'var(--error)'; return; }
-    geminiKey = k;
-    localStorage.setItem('gastro_gemini_key', k);
+    if (!k.startsWith('sk-')) { keyInput.style.borderColor = 'var(--error)'; return; }
+    openaiKey = k;
+    localStorage.setItem('gastro_openai_key', k);
     checkKey();
     addMsg('ai', '¡Perfecto! API Key guardada. Ahora dime, ¿en qué puedo ayudarte con tu restaurante?');
   };
@@ -758,7 +753,6 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   function addMsg(role, text) {
     const div = document.createElement('div');
     div.className = `msg msg-${role}`;
-    // Soporte markdown básico: **bold**, saltos de línea
     div.innerHTML = text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br>');
@@ -769,18 +763,17 @@ Entrecot de Ternera 24.00" style="font-family:monospace; resize:vertical; line-h
   async function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
-    if (!geminiKey) { checkKey(); keySetup.style.display = 'block'; return; }
+    if (!openaiKey) { checkKey(); keySetup.style.display = 'block'; return; }
 
     input.value = '';
     input.style.height = '42px';
     addMsg('user', text);
-    chatHistory.push({ role: 'user', parts: [{ text }] });
+    chatHistory.push({ role: 'user', content: text });
 
     sendB.disabled = true;
     typing.style.display = 'flex';
     msgs.scrollTop = msgs.scrollHeight;
 
-    // Contexto del restaurante para la IA
     const zonesCtx = (typeof zonesData !== 'undefined' && zonesData.length)
       ? zonesData.map(z => `${z.title} (${z.capacity} pax)`).join(', ')
       : (APP_CONFIG.zones || []).map(z => `${z.title} (${z.capacity} pax)`).join(', ');
@@ -804,16 +797,24 @@ Tu misión es ayudar al gestor del restaurante con consejos prácticos, concreto
 Responde siempre en español, de forma concisa (máximo 200 palabras), con consejos accionables. Usa emojis con moderación para hacer el texto más legible. Usa **negritas** para destacar puntos clave.`;
 
     try {
-      const body = {
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: chatHistory,
-        generationConfig: { maxOutputTokens: 512, temperature: 0.7 }
-      };
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory
+      ];
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-      );
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          max_tokens: 512,
+          temperature: 0.7
+        })
+      });
 
       const data = await res.json();
 
@@ -821,16 +822,16 @@ Responde siempre en español, de forma concisa (máximo 200 palabras), con conse
         throw new Error(data.error.message);
       }
 
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No pude generar una respuesta. Inténtalo de nuevo.';
-      chatHistory.push({ role: 'model', parts: [{ text: reply }] });
+      const reply = data.choices?.[0]?.message?.content || 'No pude generar una respuesta. Inténtalo de nuevo.';
+      chatHistory.push({ role: 'assistant', content: reply });
       addMsg('ai', reply);
 
     } catch (err) {
-      if (err.message.includes('API_KEY') || err.message.includes('key')) {
-        geminiKey = '';
-        localStorage.removeItem('gastro_gemini_key');
+      if (err.message.includes('API key') || err.message.includes('Incorrect') || err.message.includes('invalid')) {
+        openaiKey = '';
+        localStorage.removeItem('gastro_openai_key');
         checkKey();
-        addMsg('ai', '⚠️ La API Key no es válida. Introduce una nueva clave de [ai.google.dev](https://ai.google.dev).');
+        addMsg('ai', '⚠️ La API Key no es válida. Introduce una nueva clave de <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>.');
       } else {
         addMsg('ai', `⚠️ Error: ${err.message}. Comprueba tu conexión y vuelve a intentarlo.`);
       }
@@ -845,7 +846,6 @@ Responde siempre en español, de forma concisa (máximo 200 palabras), con conse
   input.onkeydown = e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
-  // Auto-resize textarea
   input.oninput = () => {
     input.style.height = '42px';
     input.style.height = Math.min(input.scrollHeight, 100) + 'px';
@@ -853,7 +853,7 @@ Responde siempre en español, de forma concisa (máximo 200 palabras), con conse
 })();
 </script>
 
-<!-- Scripts esenciales del panel -->
+<!-- Scripts cargados UNA sola vez -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
