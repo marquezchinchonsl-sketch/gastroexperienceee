@@ -67,14 +67,20 @@ async function checkLogin() {
 }
 document.getElementById('login-btn').onclick = checkLogin;
 pwInput.onkeydown = e => { if(e.key==='Enter') checkLogin(); };
-if (sessionStorage.getItem('admin_auth')==='true') {
-  loginOverlay.classList.add('login-hide');
-  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
-  const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
-  if (map[activeTab]) map[activeTab]();
-  checkOnboarding();
-  resetSessionTimeout();
-}
+window.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('admin_auth') === 'true') {
+    console.log('Autologin: Restaurando sesión desde sessionStorage');
+    loginOverlay.classList.add('login-hide');
+    const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab || 'metrics';
+    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
+    if (map[activeTab]) {
+      console.log('Autologin: Cargando pestaña ' + activeTab);
+      map[activeTab]();
+    }
+    checkOnboarding();
+    resetSessionTimeout();
+  }
+});
 
 // ── Seguridad Ligera: Timeout de sesión ────────────────────
 let sessionTimer;
