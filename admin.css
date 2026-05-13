@@ -453,3 +453,79 @@ td { padding: 16px 24px; vertical-align: middle; color: var(--text); }
 .password-toggle-btn:hover {
   color: var(--gold);
 }
+
+/* ══ APP DASHBOARD GRID (MOBILE LAUNCHPAD) ══ */
+.app-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 24px;
+  padding: 10px 0 40px;
+}
+
+.app-icon-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-icon-card:active {
+  transform: scale(0.9);
+  opacity: 0.8;
+}
+
+.app-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.8rem;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.app-icon::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent);
+}
+
+.app-icon-card span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+
+/* Ajustes Mobile Dashboard */
+@media(max-width: 480px) {
+  .app-dashboard-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding-top: 20px;
+  }
+  .app-icon {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+    border-radius: 16px;
+  }
+  .app-icon-card span {
+    font-size: 0.75rem;
+  }
+}
+
+/* Ocultar el Dashboard en desktop si prefieres, o dejarlo como resumen */
+@media(min-width: 993px) {
+  #tab-app-dashboard {
+    display: none !important; /* En desktop saltamos directo a métricas */
+  }
+}

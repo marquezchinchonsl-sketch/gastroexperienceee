@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=1024">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Carta</title>
   <meta name="theme-color" content="#f8f6f2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,6 +21,12 @@
       <img src="images/logo.png" alt="Logo" id="page-logo" height="44">
     </div>
   </header>
+  
+  <div class="categories-bar-wrapper">
+    <nav class="categories-nav" id="categories-nav">
+      <!-- Inyectado por JS -->
+    </nav>
+  </div>
 
   <div class="section-intro">
     <h1 id="page-title">Carta</h1>
@@ -106,6 +112,29 @@
       }
 
       renderItems(items);
+      renderCategoryBar();
+    }
+
+    function renderCategoryBar() {
+      const nav = document.getElementById('categories-nav');
+      if (!nav) return;
+      nav.innerHTML = '';
+      
+      const cats = APP_CONFIG.menuCategories || [];
+      
+      // Opción "Todas" o "Inicio" si se desea, o solo las categorías
+      cats.forEach(cat => {
+        const a = document.createElement('a');
+        a.href = `carta.html?cat=${cat.id}&title=${encodeURIComponent(cat.label)}`;
+        a.className = `cat-nav-item ${PAGE_CATEGORY === cat.id ? 'active' : ''}`;
+        a.textContent = cat.label;
+        nav.appendChild(a);
+        
+        // Autoscroll to active item
+        if (PAGE_CATEGORY === cat.id) {
+          setTimeout(() => a.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }), 100);
+        }
+      });
     }
 
     function renderItems(items) {

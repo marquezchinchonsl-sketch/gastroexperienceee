@@ -115,16 +115,46 @@ db.channel('public:menu_items')
   }).subscribe();
 
 // ── Nav tabs ──────────────────────────────────────────────
-document.querySelectorAll('.nav-tab').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
-    tab.classList.add('active');
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active-tab');
-    const map = { reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, categories: loadCategories, config: loadConfigTab, qr: loadQR, metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, integrations: loadIntegrations };
-    if (map[tab.dataset.tab]) map[tab.dataset.tab]();
+window.openTab = (tabId) => {
+  const tab = document.querySelector(`.nav-tab[data-tab="${tabId}"]`);
+  if (!tab) return;
+  
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
+  
+  tab.classList.add('active');
+  document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active-tab');
+  
+  const map = { 
+    reservations: loadDashboard, menu: loadProducts, schedule: loadSchedule, 
+    categories: loadCategories, config: loadConfigTab, qr: loadQR, 
+    metrics: loadMetrics, tables: loadTablesMap, business: loadBusinessTab, 
+    integrations: loadIntegrations 
   };
+  if (map[tab.dataset.tab]) map[tab.dataset.tab]();
+  
+  // En móvil, manejar botón de volver
+  const backBtn = document.getElementById('back-to-dashboard');
+  if (backBtn) {
+    if (window.innerWidth <= 992) {
+      backBtn.style.display = (tab.dataset.tab === 'app-dashboard') ? 'none' : 'flex';
+      // Si entramos en una sección, ocultamos el título principal para ganar espacio
+      if (tab.dataset.tab !== 'app-dashboard') {
+        document.getElementById('admin-title').style.fontSize = '0.9rem';
+      } else {
+        document.getElementById('admin-title').style.fontSize = '';
+      }
+    } else {
+      backBtn.style.display = 'none';
+    }
+  }
+};
+
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.onclick = () => openTab(tab.dataset.tab);
 });
+
+document.getElementById('back-to-dashboard').onclick = () => openTab('app-dashboard');
 
 // ── RESERVAS ──────────────────────────────────────────────
 const dateInput = document.getElementById('admin-date-select');
@@ -591,7 +621,16 @@ document.getElementById('product-form').onsubmit = async e => {
     const file = fileInput.files[0];
     const path = `${RID}/${Date.now()}.${file.name.split('.').pop()}`;
     const { error: upErr } = await db.storage.from('menu-images').upload(path, file, { upsert: true });
-    if (!upErr) { const { data: urlData } = db.storage.from('menu-images').getPublicUrl(path); imageUrl = urlData.publicUrl; }
+    if (upErr) {
+      console.error('Error uploading image:', upErr);
+      toast('Error al subir la imagen: ' + upErr.message, 'error');
+      // If upload fails, we show the error but allow the product to be saved without the new image
+      // or we could stop here. Let's at least log it properly.
+    } else {
+      const { data: urlData } = db.storage.from('menu-images').getPublicUrl(path);
+      imageUrl = urlData.publicUrl;
+      console.log('Imagen subida con éxito:', imageUrl);
+    }
   }
   const allergens = {};
   ALLERGENS.forEach(a => allergens[a] = document.getElementById(`a-${a}`).checked);
@@ -1149,7 +1188,7 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant ON menu_items(restaurant_id
 CREATE INDEX IF NOT EXISTS idx_reservations_restaurant ON reservations(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_date ON reservations(restaurant_id, date);`;
   document.getElementById('db-init-msg').innerHTML =
-    `<textarea style="width:100%;height:14rem;background:#000;color:#4ade80;font-family:monospace;padding:12px;border-radius:8px;border:1px solid #333;resize:vertical;">${sql}</textarea>`;
+    `<meta name="viewport" content="width=device-width, initial-scale=1.0"><textarea style="width:100%;height:14rem;background:#000;color:#4ade80;font-family:monospace;padding:12px;border-radius:8px;border:1px solid #333;resize:vertical;">${sql}</textarea>`;
 };
 
 // ── QR ────────────────────────────────────────────────────

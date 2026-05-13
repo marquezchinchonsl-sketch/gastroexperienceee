@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=1024">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin - GastroExperience</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,16 +32,16 @@
     </div>
     
     <nav class="admin-nav">
-      <button class="nav-tab active" data-tab="metrics"><i class="fas fa-home"></i> Resumen</button>
+      <button class="nav-tab active" data-tab="app-dashboard"><i class="fas fa-th-large"></i> Dashboard</button>
+      <button class="nav-tab" data-tab="metrics"><i class="fas fa-chart-line"></i> Métricas</button>
       <button class="nav-tab" data-tab="reservations"><i class="fas fa-calendar-check"></i> Reservas</button>
-      <button class="nav-tab" data-tab="menu"><i class="fas fa-utensils"></i> Carta Digital</button>
+      <button class="nav-tab" data-tab="menu"><i class="fas fa-utensils"></i> Carta</button>
       <button class="nav-tab" data-tab="categories"><i class="fas fa-list-ul"></i> Secciones</button>
-      <button class="nav-tab" data-tab="tables"><i class="fas fa-chair"></i> Plano de Mesas</button>
+      <button class="nav-tab" data-tab="tables"><i class="fas fa-chair"></i> Mesas</button>
       <button class="nav-tab" data-tab="schedule"><i class="fas fa-clock"></i> Horarios</button>
-      <button class="nav-tab" data-tab="qr"><i class="fas fa-qrcode"></i> Códigos QR</button>
-      <button class="nav-tab" data-tab="business"><i class="fas fa-store"></i> Negocio</button>
+      <button class="nav-tab" data-tab="qr"><i class="fas fa-qrcode"></i> QR</button>
+      <button class="nav-tab" data-tab="business"><i class="fas fa-store"></i> Perfil</button>
       <button class="nav-tab" data-tab="config"><i class="fas fa-sliders-h"></i> Ajustes</button>
-      <button class="nav-tab" data-tab="integrations"><i class="fas fa-plug"></i> Integraciones</button>
     </nav>
     
     <div class="sidebar-footer">
@@ -53,6 +53,7 @@
   <div class="main-wrapper">
     
     <header class="topbar">
+      <button id="back-to-dashboard" class="btn-surface" style="display:none; padding: 10px; border-radius: 50%; width: 40px; height: 40px; margin-right: 12px; flex-shrink: 0;"><i class="fas fa-arrow-left"></i></button>
       <div class="topbar-title" id="admin-title">Panel de Administración</div>
       <div class="user-info">
         <span id="admin-bar-label">Cargando...</span>
@@ -76,7 +77,49 @@
       </div>
 
       <!-- â•â• TAB: DASHBOARD (METRICS) â•â• -->
-      <div id="tab-metrics" class="tab-content active-tab">
+      <!-- ══ TAB: APP DASHBOARD (LAUNCHPAD) ══ -->
+      <div id="tab-app-dashboard" class="tab-content active-tab">
+        <div class="app-dashboard-grid">
+          <div class="app-icon-card" onclick="openTab('reservations')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #FF9500, #FFCC00);"><i class="fas fa-calendar-check"></i></div>
+            <span>Reservas</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('menu')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #007AFF, #00C7FF);"><i class="fas fa-utensils"></i></div>
+            <span>La Carta</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('schedule')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #FF3B30, #FF2D55);"><i class="fas fa-clock"></i></div>
+            <span>Horarios</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('tables')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #4CD964, #34C759);"><i class="fas fa-chair"></i></div>
+            <span>Mesas</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('metrics')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #5856D6, #AF52DE);"><i class="fas fa-chart-line"></i></div>
+            <span>Métricas</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('qr')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #000, #444);"><i class="fas fa-qrcode"></i></div>
+            <span>QR</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('categories')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #34C759, #8E8E93);"><i class="fas fa-list-ul"></i></div>
+            <span>Secciones</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('business')">
+            <div class="app-icon" style="background: linear-gradient(135deg, #8E8E93, #636366);"><i class="fas fa-store"></i></div>
+            <span>Perfil</span>
+          </div>
+          <div class="app-icon-card" onclick="openTab('config')">
+            <div class="app-icon" style="background: #C7C7CC;"><i class="fas fa-sliders-h"></i></div>
+            <span>Ajustes</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-metrics" class="tab-content">
         <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px;">
           <div>
             <h2 style="font-size:1.8rem; font-weight:600; color:var(--text); margin-bottom:4px;">Resumen del Negocio</h2>
