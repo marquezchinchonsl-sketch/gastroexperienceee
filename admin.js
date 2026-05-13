@@ -105,6 +105,7 @@ document.addEventListener('touchstart', resetSessionTimeout);
 // ── WebSockets ───────────────────────────────────────────
 db.channel('public:reservations')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `restaurant_id=eq.${RID}` }, () => {
+    if(document.getElementById('tab-app-dashboard').classList.contains('active-tab')) loadMetrics(); // Update badges on home
     if(document.getElementById('tab-reservations').classList.contains('active-tab')) loadDashboard();
     if(document.getElementById('tab-metrics').classList.contains('active-tab')) loadMetrics();
   }).subscribe();
@@ -176,7 +177,7 @@ async function loadDashboard() {
     if (tRes.data && tRes.data.value) tablesData = JSON.parse(tRes.data.value);
   }
 
-  let query = db.from('reservations').select('*').eq('restaurant_id', RID);
+  let query = db.from('reservations').select('*').eq('restaurant_id', RID).neq('status', 'cancelled');
   
   if (dateInput.value) {
     query = query.eq('date', dateInput.value).order('time');
@@ -1255,7 +1256,7 @@ async function loadMetrics() {
       db.from('settings').select('value').eq('restaurant_id', APP_CONFIG.restaurantId).eq('key', 'stats_views').maybeSingle()
     ]);
     
-    const res = resData.data || [];
+    const res = (resData.data || []).filter(r => r.status !== 'cancelled');
     let views = {};
     if (viewsData.data && viewsData.data.value) {
       try { views = JSON.parse(viewsData.data.value); } catch(e){}
@@ -1533,63 +1534,65 @@ function renderTablesMap(occupiedTables = []) {
     el.innerHTML = `<span style="font-weight:700; font-size:0.9rem; color:${textColor};">${t.name}</span><span style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${t.capacity} pax</span>`;
     
     // Drag Events
-    el.onmousedown = e => {
+    const handleStart = (e) => {
       draggingTable = idx;
       const areaRect = mapArea.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
-      dragOffset.x = e.clientX - elRect.left;
-      dragOffset.y = e.clientY - elRect.top;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      dragOffset.x = clientX - elRect.left;
+      dragOffset.y = clientY - elRect.top;
       el.style.cursor = 'grabbing';
       el.style.zIndex = 100;
       el.style.boxShadow = 'var(--shadow-lg)';
       el.style.borderColor = 'var(--gold)';
     };
     
+    el.onmousedown = handleStart;
+    el.ontouchstart = (e) => { handleStart(e); e.preventDefault(); };
+    
     mapArea.appendChild(el);
   });
 }
 
-document.addEventListener('mousemove', e => {
+const handleMove = e => {
   if (draggingTable !== null) {
     const mapArea = document.getElementById('tables-map-area');
     const areaRect = mapArea.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
-    // Calculate new position in pixels
-    let newX = e.clientX - areaRect.left - dragOffset.x;
-    let newY = e.clientY - areaRect.top - dragOffset.y;
+    let newX = clientX - areaRect.left - dragOffset.x;
+    let newY = clientY - areaRect.top - dragOffset.y;
     
-    // Apply bounds
-    const width = tablesData[draggingTable].shape === 'round' ? 60 : 70;
-    const height = tablesData[draggingTable].shape === 'round' ? 60 : 70;
+    const width = 70; // Use standard or dynamic
+    const height = 70;
     newX = Math.max(0, Math.min(newX, areaRect.width - width));
     newY = Math.max(0, Math.min(newY, areaRect.height - height));
     
-    // Save as percentages for responsive resizing
     tablesData[draggingTable].x = (newX / areaRect.width) * 100;
     tablesData[draggingTable].y = (newY / areaRect.height) * 100;
     
-    // Update visually instantly
-    const el = mapArea.children[tablesData.length === 0 ? draggingTable : (mapArea.children[0].tagName === 'DIV' && mapArea.children.length === tablesData.length + 1) ? draggingTable + 1 : draggingTable]; // handle empty state div
-    if(el) {
-      el.style.left = tablesData[draggingTable].x + '%';
-      el.style.top = tablesData[draggingTable].y + '%';
-    } else {
-      // safe fallback if DOM mismatch
-      const allTables = Array.from(mapArea.children).filter(c => c.style.cursor.includes('grab'));
-      if(allTables[draggingTable]) {
-         allTables[draggingTable].style.left = tablesData[draggingTable].x + '%';
-         allTables[draggingTable].style.top = tablesData[draggingTable].y + '%';
-      }
+    const allTables = Array.from(mapArea.children).filter(c => c.style.position === 'absolute');
+    if(allTables[draggingTable]) {
+       allTables[draggingTable].style.left = tablesData[draggingTable].x + '%';
+       allTables[draggingTable].style.top = tablesData[draggingTable].y + '%';
     }
   }
-});
+};
 
-document.addEventListener('mouseup', () => {
+document.addEventListener('mousemove', handleMove);
+document.addEventListener('touchmove', handleMove, { passive: false });
+
+const handleEnd = () => {
   if (draggingTable !== null) {
-    loadTablesMap(); // re-render cleanly with occupied data
     draggingTable = null;
+    loadTablesMap(); 
   }
-});
+};
+
+document.addEventListener('mouseup', handleEnd);
+document.addEventListener('touchend', handleEnd);
 
 document.getElementById('add-table-btn').onclick = () => {
   if (zonesData.length === 0) { alert('Añade primero una Sala/Zona arriba'); return; }
