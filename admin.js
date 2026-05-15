@@ -221,15 +221,32 @@ document.getElementById('view-confirmed-btn').onclick = () => {
 
 document.getElementById('clear-btn').onclick = async () => {
   const d = dateInput.value;
-  if (!d) { toast('Selecciona una fecha específica primero', 'error'); return; }
+  if (!d) { 
+    toast('Selecciona una fecha específica primero', 'warning'); 
+    return; 
+  }
+  
   if (confirm(`¿Bloquear el día ${d} para no recibir más reservas?`)) {
+    const btn = document.getElementById('clear-btn');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    
     try {
-      const { error } = await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: true }, { onConflict: 'restaurant_id,date' });
+      const { error } = await db.from('special_days').upsert({ 
+        restaurant_id: RID, 
+        date: d, 
+        is_closed: true 
+      }, { onConflict: 'restaurant_id,date' });
+      
       if (error) throw error;
-      toast(`Día ${d} bloqueado`, 'success');
+      toast(`Día ${d} bloqueado con éxito ✓`, 'success');
     } catch(err) {
       console.error('Error bloqueando día:', err);
-      toast('Error al bloquear día: ' + err.message, 'error');
+      toast('Error al bloquear día: ' + (err.message || 'Error desconocido'), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
     }
   }
 };
@@ -347,8 +364,13 @@ function renderTable(res) {
       const val = sel.value;
       const resId = sel.dataset.id;
       const notesVal = val !== "" ? `TABLE:${val}` : null;
-      await db.from('reservations').update({ notes: notesVal }).eq('id', resId);
-      toast('Mesa asignada ✓', 'success');
+      const { error } = await db.from('reservations').update({ notes: notesVal }).eq('id', resId);
+      if (error) {
+        toast('Error al asignar mesa: ' + error.message, 'error');
+        loadDashboard(); // Revertir UI
+      } else {
+        toast('Mesa asignada ✓', 'success');
+      }
     };
   });
   tbody.querySelectorAll('.confirm-res-btn').forEach(btn => {
@@ -440,11 +462,11 @@ async function deleteReservation(id) {
     const { error } = await db.from('reservations').delete().eq('id', id).eq('restaurant_id', RID);
     if (error) throw error;
     
-    toast('Reserva eliminada con éxito','info');
-    loadDashboard();
+    toast('Reserva eliminada con éxito ✓', 'info');
+    await loadDashboard();
   } catch(err) {
     console.error('Error al eliminar:', err);
-    toast('No se pudo eliminar: ' + err.message, 'error');
+    toast('No se pudo eliminar: ' + (err.message || 'Error desconocido'), 'error');
   }
 }
 
@@ -603,71 +625,139 @@ window.openEditModal = id => {
 window.previewImage = e => {
   const file = e.target.files[0];
   if (!file) return;
+  
+  // Mostrar preview local inmediatamente
   const reader = new FileReader();
   reader.onload = ev => {
     document.getElementById('image-preview').src = ev.target.result;
     document.getElementById('image-preview-container').style.display = 'block';
   };
   reader.readAsDataURL(file);
+  
+  // Limpiar el campo de URL manual si se sube un archivo
+  document.getElementById('p-image-url').value = '';
 };
 
 document.getElementById('product-form').onsubmit = async e => {
   e.preventDefault();
   const btn = document.querySelector('#product-form .save-btn');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  const origBtnHtml = btn.innerHTML;
+  
+  btn.disabled = true; 
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  
   const id = document.getElementById('product-id').value;
   let imageUrl = document.getElementById('p-image-url').value;
   const fileInput = document.getElementById('p-image');
+  
+  // 1. Manejo de subida de imagen
   if (fileInput.files.length > 0) {
-    const file = fileInput.files[0];
-    const path = `${RID}/${Date.now()}.${file.name.split('.').pop()}`;
-    const { error: upErr } = await db.storage.from('menu-images').upload(path, file, { upsert: true });
-    if (upErr) {
-      console.error('Error uploading image:', upErr);
-      toast('Error al subir la imagen: ' + upErr.message, 'error');
-      // If upload fails, we show the error but allow the product to be saved without the new image
-      // or we could stop here. Let's at least log it properly.
-    } else {
+    try {
+      const file = fileInput.files[0];
+      // Limpiar nombre de archivo para evitar problemas con caracteres especiales
+      const cleanFileName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const path = `${RID}/${Date.now()}_${cleanFileName}`;
+      
+      const { data: upData, error: upErr } = await db.storage.from('menu-images').upload(path, file, { 
+        cacheControl: '3600',
+        upsert: false 
+      });
+      
+      if (upErr) {
+        console.error('Error uploading image:', upErr);
+        // Si el error es que el bucket no existe o similar, avisamos
+        if (upErr.message.includes('bucket_not_found') || upErr.status === 404) {
+          toast('Error: El contenedor "menu-images" no existe en Supabase Storage.', 'error');
+        } else {
+          toast('Error al subir imagen: ' + upErr.message, 'error');
+        }
+        btn.disabled = false;
+        btn.innerHTML = origBtnHtml;
+        return; // Detenemos para que el usuario sepa que la foto falló
+      }
+      
       const { data: urlData } = db.storage.from('menu-images').getPublicUrl(path);
       imageUrl = urlData.publicUrl;
       console.log('Imagen subida con éxito:', imageUrl);
+    } catch (err) {
+      console.error('Excepción en upload:', err);
+      toast('Error inesperado al subir imagen', 'error');
+      btn.disabled = false;
+      btn.innerHTML = origBtnHtml;
+      return;
     }
   }
+
+  // 2. Preparar Payload
   const allergens = {};
-  ALLERGENS.forEach(a => allergens[a] = document.getElementById(`a-${a}`).checked);
-  if(document.getElementById('p-bestseller')) allergens.bestseller = document.getElementById('p-bestseller').checked;
+  ALLERGENS.forEach(a => {
+    const el = document.getElementById(`a-${a}`);
+    if (el) allergens[a] = el.checked;
+  });
+  if(document.getElementById('p-bestseller')) {
+    allergens.bestseller = document.getElementById('p-bestseller').checked;
+  }
+
+  const rawPrice = document.getElementById('p-price').value.replace(',', '.');
   const payload = {
     restaurant_id: RID,
-    name:          document.getElementById('p-name').value,
-    info:          document.getElementById('p-info').value,
+    name:          document.getElementById('p-name').value.trim(),
+    info:          document.getElementById('p-info').value.trim(),
     category:      document.getElementById('p-category').value,
-    price:         parseFloat(document.getElementById('p-price').value) || 0,
-    position:      parseInt(document.getElementById('p-position').value)||1000,
+    price:         parseFloat(rawPrice) || 0,
+    position:      parseInt(document.getElementById('p-position').value) || 0,
     visible:       document.getElementById('p-visible').checked,
     is_sugerencia: document.getElementById('p-sugerencia').checked,
     image_url:     imageUrl,
     allergens,
   };
+
+  // 3. Guardar en Base de Datos
   try {
-    if (id) await db.from('menu_items').update(payload).eq('id', id);
-    else    await db.from('menu_items').insert([payload]);
+    let response;
+    if (id) {
+      // Actualizar existente. Usamos eq('id', id) asegurándonos de que id sea del tipo correcto si es posible, 
+      // aunque Supabase suele manejar strings como IDs de forma transparente.
+      response = await db.from('menu_items').update(payload).eq('id', id).eq('restaurant_id', RID);
+    } else {
+      // Insertar nuevo
+      response = await db.from('menu_items').insert([payload]);
+    }
+
+    if (response.error) {
+      console.error('Error de Supabase:', response.error);
+      throw new Error(response.error.message);
+    }
+
+    toast(id ? 'Cambios guardados correctamente ✓' : 'Plato añadido con éxito ✓', 'success');
     productModal.classList.remove('open');
-    loadProducts();
-    toast(id ? 'Producto actualizado ✓' : 'Producto añadido ✓','success');
-    checkOnboarding();
+    
+    // Forzar recarga de la lista
+    await loadProducts();
+    
+    if (typeof checkOnboarding === 'function') checkOnboarding();
+    
   } catch (err) {
     console.error('Error guardando producto:', err);
-    toast('Error al guardar producto', 'error');
+    toast('Error al guardar cambios: ' + err.message, 'error');
   } finally {
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Producto';
+    btn.disabled = false; 
+    btn.innerHTML = origBtnHtml;
   }
 };
 
 window.deleteProduct = async id => {
-  if (!confirm('¿Borrar este producto?')) return;
-  await db.from('menu_items').delete().eq('id', id);
-  loadProducts();
-  toast('Producto eliminado','info');
+  if (!confirm('¿Seguro que deseas borrar este producto de la carta?')) return;
+  try {
+    const { error } = await db.from('menu_items').delete().eq('id', id).eq('restaurant_id', RID);
+    if (error) throw error;
+    
+    toast('Producto eliminado de la carta ✓', 'info');
+    await loadProducts();
+  } catch (err) {
+    console.error('Error eliminando producto:', err);
+    toast('No se pudo eliminar: ' + err.message, 'error');
+  }
 };
 
 // Importar carta inteligente
@@ -707,14 +797,16 @@ document.getElementById('process-import-btn').onclick = async () => {
     try {
       const { error } = await db.from('menu_items').insert(payloads);
       if (error) throw error;
-      toast(`${payloads.length} platos importados ✓`, 'success');
-      loadProducts();
+      toast(`${payloads.length} platos importados correctamente ✓`, 'success');
+      await loadProducts();
       if (typeof checkOnboarding === 'function') checkOnboarding();
     } catch(err) {
+      console.error('Error en importación:', err);
       toast('Error al importar: ' + err.message, 'error');
     } finally {
       document.getElementById('import-modal').classList.remove('open');
-      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Extraer y Crear Platos';
+      btn.disabled = false; 
+      btn.innerHTML = '<i class="fas fa-magic"></i> Extraer y Crear Platos';
     }
   } else {
     document.getElementById('import-modal').classList.remove('open');
@@ -867,17 +959,26 @@ async function loadSpecialDays() {
 async function setSpecialDay(closed) {
   const d = document.getElementById('special-date-input').value;
   const reason = document.getElementById('special-reason-input') ? document.getElementById('special-reason-input').value : '';
-  if (!d) { toast('Selecciona una fecha','error'); return; }
-  await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed }, { onConflict: 'restaurant_id,date' });
+  if (!d) { toast('Selecciona una fecha primero', 'warning'); return; }
+  
+  try {
+    const { error: err1 } = await db.from('special_days').upsert({ restaurant_id: RID, date: d, is_closed: closed }, { onConflict: 'restaurant_id,date' });
+    if (err1) throw err1;
   
   const { data: rData } = await db.from('settings').select('value').eq('restaurant_id', RID).eq('key','special_reasons').maybeSingle();
   let reasons = {};
   try { if (rData?.value) reasons = JSON.parse(rData.value); } catch(e){}
   reasons[d] = reason;
-  await db.from('settings').upsert({ restaurant_id: RID, key: 'special_reasons', value: JSON.stringify(reasons) }, { onConflict: 'restaurant_id,key' });
+    const { error: err2 } = await db.from('settings').upsert({ restaurant_id: RID, key: 'special_reasons', value: JSON.stringify(reasons) }, { onConflict: 'restaurant_id,key' });
+    if (err2) throw err2;
 
-  loadSpecialDays();
-  toast(`Día ${d} marcado como ${closed?'CERRADO':'ABIERTO (excepción)'}`, closed?'error':'success');
+    toast(`Día ${d} configurado como ${closed ? 'CERRADO' : 'ABIERTO (excepción)'} ✓`, closed ? 'info' : 'success');
+    await loadSpecialDays();
+    if(document.getElementById('special-reason-input')) document.getElementById('special-reason-input').value = '';
+  } catch(err) {
+    console.error('Error configurando día especial:', err);
+    toast('Error: ' + err.message, 'error');
+  }
 }
 
 document.getElementById('add-special-close-btn').onclick = () => setSpecialDay(true);
@@ -1184,10 +1285,29 @@ CREATE TABLE IF NOT EXISTS special_days (
   restaurant_id TEXT NOT NULL, date DATE, is_closed BOOLEAN DEFAULT true,
   UNIQUE(restaurant_id, date)
 );
--- Índices
+-- Índices de rendimiento
 CREATE INDEX IF NOT EXISTS idx_menu_items_restaurant ON menu_items(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_restaurant ON reservations(restaurant_id);
-CREATE INDEX IF NOT EXISTS idx_reservations_date ON reservations(restaurant_id, date);`;
+CREATE INDEX IF NOT EXISTS idx_reservations_date ON reservations(restaurant_id, date);
+
+-- ══ SEGURIDAD DE DATOS (Aislamiento de Proyectos) ══
+-- Activar Row Level Security (RLS)
+ALTER TABLE menu_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE special_days ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de lectura pública (Cualquiera puede ver la carta)
+CREATE POLICY "Lectura pública de platos" ON menu_items FOR SELECT USING (true);
+CREATE POLICY "Lectura pública de ajustes" ON settings FOR SELECT USING (true);
+CREATE POLICY "Lectura pública de días especiales" ON special_days FOR SELECT USING (true);
+
+-- Políticas de inserción pública (Cualquiera puede reservar)
+CREATE POLICY "Clientes pueden insertar reservas" ON reservations FOR INSERT WITH CHECK (true);
+
+-- NOTA: Estas políticas permiten que el sitio web funcione. 
+-- Para máxima seguridad, se recomienda filtrar por restaurante_id en cada consulta SQL.
+`;
   document.getElementById('db-init-msg').innerHTML =
     `<meta name="viewport" content="width=device-width, initial-scale=1.0"><textarea style="width:100%;height:14rem;background:#000;color:#4ade80;font-family:monospace;padding:12px;border-radius:8px;border:1px solid #333;resize:vertical;">${sql}</textarea>`;
 };

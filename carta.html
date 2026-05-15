@@ -96,11 +96,17 @@
 
         const { data, error } = await query;
 
-        if (!error && data && data.length > 0) {
-          items  = data;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          items = data;
         }
       } catch(e) {
-        console.error('Error loading products', e);
+        console.error('Error loading products:', e);
+        if (loader) {
+          loader.innerHTML = `<p style="color:var(--error);text-align:center;padding:20px;">Error al cargar la carta: ${e.message}</p>`;
+        }
+        return;
       }
 
       loader.remove();

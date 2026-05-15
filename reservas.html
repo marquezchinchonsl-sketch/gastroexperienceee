@@ -342,29 +342,53 @@
       const tplAdmin = APP_CONFIG.emailjsTemplateAdmin;
       const tplClient = APP_CONFIG.emailjsTemplateClient;
       
-      if (!pub || !svc) return;
+      if (!pub || !svc) {
+        console.warn('Configuración de EmailJS incompleta en el panel de administración.');
+        return;
+      }
       
       try {
         emailjs.init(pub);
+        const promises = [];
+        
         if (tplAdmin && APP_CONFIG.emailjsAdminEmail) {
-          await emailjs.send(svc, tplAdmin, {
-            to_email: APP_CONFIG.emailjsAdminEmail, user_name: res.name, user_phone: res.phone, user_email: res.email,
-            res_date: res.date, res_time: res.time, res_people: res.people, res_zone: res.zoneName,
+          promises.push(emailjs.send(svc, tplAdmin, {
+            to_email: APP_CONFIG.emailjsAdminEmail, 
+            user_name: res.name, 
+            user_phone: res.phone, 
+            user_email: res.email,
+            res_date: res.date, 
+            res_time: res.time, 
+            res_people: res.people, 
+            res_zone: res.zoneName,
             bar_name: APP_CONFIG.barName,
-          });
+          }));
         }
+        
         if (tplClient && status === 'confirmed') {
-          await emailjs.send(svc, tplClient, {
-            to_name: res.name, to_email: res.email, client_email: res.email,
-            reservation_date: res.date, reservation_time: res.time,
+          promises.push(emailjs.send(svc, tplClient, {
+            to_name: res.name, 
+            to_email: res.email, 
+            client_email: res.email,
+            reservation_date: res.date, 
+            reservation_time: res.time,
             bar_name: APP_CONFIG.barName
-          });
+          }));
         }
-      } catch(e) { console.warn('EmailJS error:', e); }
+        
+        await Promise.all(promises);
+      } catch(e) { 
+        console.warn('Error enviando notificaciones:', e);
+      }
     }
 
-    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
-    dateInput.value = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+    // Restringir fechas pasadas
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const todayStr = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+    dateInput.value = todayStr;
+    dateInput.min = todayStr;
+    
     dateInput.onchange = window.renderSlots;
     peopleSelect.onchange = window.renderSlots;
 
